@@ -43,7 +43,7 @@ request. To publish a release, bump `version` in `package.json`, commit, then pu
 git tag v0.1.0 && git push origin v0.1.0
 ```
 
-The release workflow builds the Windows (NSIS), macOS (dmg, x64 + arm64) and Linux (AppImage, deb)
+The release workflow builds the Windows (NSIS installer + portable zip), macOS (dmg, x64 + arm64) and Linux (AppImage, deb)
 packages and attaches them to a GitHub Release. Builds are not code-signed yet.
 
 Running Electron **45.0.0** (Chromium 156, Node 22).
