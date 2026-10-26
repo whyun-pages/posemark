@@ -1,0 +1,92 @@
+'use strict';
+// Tiny JSON config store persisted under the app's userData directory.
+const fs = require('fs');
+const path = require('path');
+
+const DEFAULTS = {
+  theme: 'default',
+  fontSize: 16,
+  lineWidth: 760,
+  autoSave: false,
+  autoSaveDelay: 900,
+  showStatusBar: true,
+  showSidebar: true,
+  sidebarWidth: 240,
+  sidebarTab: 'files',
+  sourceMode: false,
+  focusMode: false,
+  typewriterMode: false,
+  lineNumbersInCode: false,
+  codeWrap: true,
+  inlineMath: true,
+  smartTypography: true,
+  indentSize: 4,
+  spellcheck: true,
+  confirmOnClose: true,
+  defaultExtension: 'md',
+  // Copy for WeChat style (see WECHAT_DEFAULTS in src/renderer/wechat.js)
+  wechatTheme: 'current',
+  wechatFontSize: 16,
+  wechatLineHeight: 1.75,
+  wechatLetterSpacing: 0.02,
+  wechatParagraphSpacing: 16,
+  wechatJustify: false,
+  wechatAccent: '',
+  wechatHeadingStyle: 'bar',
+  wechatFirstLineIndent: false,
+  wechatCodeLang: true,
+  wechatLinkRefs: true,
+  recentFiles: [],
+  recentFolders: [],
+  lastFolder: null,
+  openTabs: [],
+  activeFile: null,
+  windowBounds: null,
+  outlineCollapsed: {},
+};
+
+class Store {
+  constructor(file) {
+    this.file = file;
+    this.data = { ...DEFAULTS };
+    this.load();
+    this._timer = null;
+  }
+
+  load() {
+    try {
+      const raw = fs.readFileSync(this.file, 'utf8').replace(/^\uFEFF/, '');
+      const parsed = JSON.parse(raw);
+      this.data = { ...DEFAULTS, ...parsed };
+    } catch {
+      this.data = { ...DEFAULTS };
+    }
+    return this.data;
+  }
+
+  get(key) {
+    return key === undefined ? this.data : this.data[key];
+  }
+
+  set(patch) {
+    Object.assign(this.data, patch);
+    this.scheduleSave();
+    return this.data;
+  }
+
+  scheduleSave() {
+    if (this._timer) clearTimeout(this._timer);
+    this._timer = setTimeout(() => this.save(), 250);
+  }
+
+  save() {
+    try {
+      fs.mkdirSync(path.dirname(this.file), { recursive: true });
+      fs.writeFileSync(this.file, JSON.stringify(this.data, null, 2));
+    } catch (err) {
+      console.error('failed to save config', err);
+    }
+  }
+}
+
+module.exports = { Store, DEFAULTS };

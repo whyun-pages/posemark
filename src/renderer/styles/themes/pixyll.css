@@ -1,0 +1,40 @@
+/* Pixyll — warm serif writing surface. */
+:root {
+  --bg: #fdfdfb;
+  --bg-elev: #ffffff;
+  --bg-sidebar: #f7f6f1;
+  --bg-titlebar: #f3f1ea;
+  --fg: #3a3a38;
+  --fg-soft: #4a4a46;
+  --fg-muted: #7d7a72;
+  --fg-faint: #a9a59b;
+  --border: #e7e3d9;
+  --border-soft: #efece3;
+  --accent: #c0504d;
+  --accent-soft: #f0d6d4;
+  --hover: #f2efe7;
+  --selected: #efe7da;
+  --link: #b3524a;
+  --selection: #f1e3d3;
+  --code-inline-bg: #f1eee5;
+  --code-inline-fg: #a03d3a;
+  --code-block-bg: #f6f3ea;
+  --quote-bar: #d9d2c3;
+  --table-border: #e3ded1;
+  --table-head: #f5f2e9;
+  --table-zebra: #fbf9f4;
+  --highlight-bg: #fbecb0;
+  --search-hit: #f7e3a8;
+  --search-hit-active: #eccf6a;
+  --danger: #b3261e;
+  --danger-bg: #fbe9e7;
+  --hl-comment: #8d887c;
+  --hl-keyword: #9b3b3b;
+  --hl-string: #3f6b52;
+  --hl-number: #7a5ea8;
+  --hl-title: #8a5a2b;
+  --hl-builtin: #a06030;
+  --hl-variable: #3a3a38;
+  --hl-meta: #4a7a5c;
+  --font-body: 'Merriweather', 'Source Han Serif SC', 'Noto Serif SC', Georgia, 'Songti SC', serif;
+}

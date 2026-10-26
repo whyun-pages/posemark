@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self' file:; img-src 'self' file: data: https: http:; style-src 'self' file: 'unsafe-inline'; font-src 'self' file: data:; script-src 'self' file:; connect-src 'self' file: data:;" />
+  <title>Posemark</title>
+  <link rel="stylesheet" href="katex/katex.min.css" />
+  <link rel="stylesheet" href="styles/app.css" />
+  <link rel="stylesheet" href="styles/editor.css" />
+  <link rel="stylesheet" id="theme-css" href="styles/themes/default.css" />
+</head>
+<body>
+  <div id="titlebar">
+    <div class="tb-left">
+      <button class="tb-btn" id="btn-menu" title="Menu">
+        <svg viewBox="0 0 16 16" width="15" height="15"><path fill="currentColor" d="M2 3.5h12v1.3H2zm0 3.85h12v1.3H2zm0 3.85h12v1.3H2z"/></svg>
+      </button>
+      <button class="tb-btn" id="btn-sidebar" title="Toggle sidebar (Ctrl+Shift+L)">
+        <svg viewBox="0 0 16 16" width="15" height="15"><path fill="currentColor" d="M2 3h12v10H2z" opacity=".25"/><path fill="currentColor" d="M2 3h4.2v10H2z"/></svg>
+      </button>
+    </div>
+    <div class="tb-title"><span id="doc-title">Untitled</span></div>
+    <div class="tb-right">
+      <span id="dirty-dot" class="dirty-dot" hidden></span>
+      <button class="tb-btn" id="btn-mode" title="Toggle source code mode (Ctrl+/)">
+        <svg viewBox="0 0 16 16" width="15" height="15"><path fill="currentColor" d="M5.5 4 2 8l3.5 4 .9-.9L3.8 8l2.6-3.1zm5 0-.9.9L12.2 8l-2.6 3.1.9.9L14 8z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="shell">
+    <aside id="sidebar">
+      <div class="side-tabs">
+        <button class="side-tab active" data-tab="files">Files</button>
+        <button class="side-tab" data-tab="outline">Outline</button>
+      </div>
+      <div class="side-panel" id="panel-files">
+        <div class="folder-bar">
+          <span id="folder-name" title="No folder opened">No folder opened</span>
+          <button class="mini-btn" id="btn-open-folder" title="Open folder">+</button>
+        </div>
+        <div id="filetree" class="filetree"></div>
+      </div>
+      <div class="side-panel" id="panel-outline" hidden>
+        <div id="outline" class="outline"></div>
+      </div>
+    </aside>
+
+    <div id="resizer"></div>
+
+    <main id="main">
+      <div id="editor-host">
+        <div id="editor"></div>
+      </div>
+      <div id="statusbar">
+        <span id="stat-words">0 words</span>
+        <span class="dot">·</span>
+        <span id="stat-chars">0 characters</span>
+        <span class="grow"></span>
+        <span id="stat-mode" class="stat-muted"></span>
+        <span id="stat-cursor" class="stat-muted"></span>
+      </div>
+    </main>
+  </div>
+
+  <div id="quick-open" class="modal" hidden>
+    <div class="modal-box">
+      <input id="quick-open-input" type="text" placeholder="Search by file name" autocomplete="off" spellcheck="false" />
+      <div id="quick-open-list" class="quick-list"></div>
+    </div>
+  </div>
+
+  <div id="goto-line" class="modal" hidden>
+    <div class="modal-box small">
+      <input id="goto-line-input" type="text" placeholder="Go to line…" autocomplete="off" />
+    </div>
+  </div>
+
+  <div id="prefs" class="modal" hidden>
+    <div class="modal-box prefs">
+      <aside class="prefs-side">
+        <input id="prefs-search" type="search" placeholder="Search settings…" spellcheck="false" />
+        <nav class="prefs-nav" id="prefs-nav"></nav>
+      </aside>
+      <div class="prefs-main">
+        <div class="prefs-header">
+          <h2>Preferences</h2>
+          <button class="mini-btn" id="prefs-close">×</button>
+        </div>
+        <div class="prefs-body" id="prefs-body"></div>
+        <div class="prefs-footer">
+          <span>Changes apply immediately · saved to your Posemark config</span>
+          <span class="prefs-actions" id="prefs-actions"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

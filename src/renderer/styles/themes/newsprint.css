@@ -1,0 +1,42 @@
+/* Newsprint — sepia paper, justified text, book-like headings. */
+:root {
+  --bg: #f4efe4;
+  --bg-elev: #fbf7ee;
+  --bg-sidebar: #efe9dc;
+  --bg-titlebar: #eae3d4;
+  --fg: #2f2a24;
+  --fg-soft: #423b32;
+  --fg-muted: #6f665a;
+  --fg-faint: #9b9184;
+  --border: #ddd4c3;
+  --border-soft: #e8e0d1;
+  --accent: #7a5c2e;
+  --accent-soft: #e5d7bd;
+  --hover: #eae2d2;
+  --selected: #e3d8c1;
+  --link: #7a5c2e;
+  --selection: #e8dcc3;
+  --code-inline-bg: #e9e1d0;
+  --code-inline-fg: #8a4b28;
+  --code-block-bg: #efe8d8;
+  --quote-bar: #cbbfa7;
+  --table-border: #ddd3bf;
+  --table-head: #eee7d7;
+  --table-zebra: #f7f2e6;
+  --highlight-bg: #ecd79b;
+  --search-hit: #e8d79b;
+  --search-hit-active: #dcc06a;
+  --danger: #9b2c2c;
+  --danger-bg: #f4e2de;
+  --hl-comment: #8a8172;
+  --hl-keyword: #8a4b28;
+  --hl-string: #4f6b3a;
+  --hl-number: #6a4c8a;
+  --hl-title: #7a5c2e;
+  --hl-builtin: #8a5a2b;
+  --hl-variable: #2f2a24;
+  --hl-meta: #4a6b4a;
+  --font-body: 'PT Serif', 'Source Han Serif SC', 'Noto Serif SC', Georgia, 'Songti SC', serif;
+}
+
+.markdown-body p, .cm-content .cm-line { }

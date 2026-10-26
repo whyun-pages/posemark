@@ -1,0 +1,118 @@
+{
+  "name": "posemark",
+  "productName": "Posemark",
+  "version": "0.1.0",
+  "description": "A Typora-like live-preview Markdown editor for the desktop.",
+  "main": "src/main/main.js",
+  "author": "yunnysunny",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/whyun-pages/posemark.git"
+  },
+  "homepage": "https://github.com/whyun-pages/posemark#readme",
+  "bugs": {
+    "url": "https://github.com/whyun-pages/posemark/issues"
+  },
+  "private": true,
+  "packageManager": "pnpm@11.1.2",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node build.mjs && electron .",
+    "dev": "node build.mjs --watch",
+    "test": "node --test \"test/**/*.test.mjs\"",
+    "dist": "node build.mjs && electron-builder --publish never"
+  },
+  "devDependencies": {
+    "@codemirror/autocomplete": "^6.18.0",
+    "@codemirror/commands": "^6.7.0",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/lang-json": "^6.0.2",
+    "@codemirror/lang-markdown": "^6.3.0",
+    "@codemirror/lang-python": "^6.2.1",
+    "@codemirror/language": "^6.10.0",
+    "@codemirror/language-data": "^6.5.0",
+    "@codemirror/search": "^6.5.0",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/view": "^6.34.0",
+    "@lezer/highlight": "^1.2.0",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.24.0",
+    "highlight.js": "^11.10.0",
+    "katex": "^0.16.11",
+    "markdown-it": "^14.1.0",
+    "mermaid": "^11.3.0"
+  },
+  "build": {
+    "appId": "com.whyun.posemark",
+    "productName": "Posemark",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "src/main/**",
+      "dist/**",
+      "package.json",
+      "!dist/**/*.map"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "whyun-pages",
+        "repo": "posemark",
+        "releaseType": "release"
+      }
+    ],
+    "fileAssociations": [
+      {
+        "ext": [
+          "md",
+          "markdown"
+        ],
+        "name": "Markdown",
+        "role": "Editor"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Office",
+      "maintainer": "yunnysunny"
+    }
+  }
+}

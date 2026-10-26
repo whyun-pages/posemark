@@ -1,0 +1,40 @@
+/* Whitey — deliberately bare: black on white, no chrome color. */
+:root {
+  --bg: #ffffff;
+  --bg-elev: #ffffff;
+  --bg-sidebar: #ffffff;
+  --bg-titlebar: #ffffff;
+  --fg: #000000;
+  --fg-soft: #1a1a1a;
+  --fg-muted: #666666;
+  --fg-faint: #a1a1a1;
+  --border: #e6e6e6;
+  --border-soft: #f0f0f0;
+  --accent: #000000;
+  --accent-soft: #dcdcdc;
+  --hover: #f2f2f2;
+  --selected: #ededed;
+  --link: #0b5fff;
+  --selection: #d8e4ff;
+  --code-inline-bg: #f4f4f4;
+  --code-inline-fg: #c7254e;
+  --code-block-bg: #fafafa;
+  --quote-bar: #e0e0e0;
+  --table-border: #e6e6e6;
+  --table-head: #fafafa;
+  --table-zebra: #fdfdfd;
+  --highlight-bg: #fff59d;
+  --search-hit: #ffeaa7;
+  --search-hit-active: #ffd54f;
+  --danger: #b00020;
+  --danger-bg: #fdecef;
+  --hl-comment: #8a8a8a;
+  --hl-keyword: #b00020;
+  --hl-string: #0b5fff;
+  --hl-number: #6f42c1;
+  --hl-title: #6f42c1;
+  --hl-builtin: #a0522d;
+  --hl-variable: #000000;
+  --hl-meta: #2e7d32;
+  --font-body: -apple-system, 'Helvetica Neue', 'PingFang SC', 'Microsoft YaHei UI', sans-serif;
+}

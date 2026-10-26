@@ -1,0 +1,501 @@
+/* CodeMirror 6 host styles + live-preview rendering classes. */
+
+.cm-editor {
+  height: 100%;
+  background: transparent;
+  color: var(--fg);
+  font-family: var(--font-body);
+  font-size: var(--editor-font-size, 16px);
+}
+.cm-editor.cm-focused { outline: none; }
+
+.cm-editor .cm-scroller {
+  /* CodeMirror's own base theme sets monospace on .cm-scroller; out-specify it */
+  font-family: var(--font-body, inherit);
+  line-height: 1.72;
+  padding: 18px 0 45vh 0;
+  overflow-x: hidden;
+}
+.cm-editor .cm-scroller, .cm-editor .cm-content { font-family: var(--font-body, inherit); }
+/* CodeMirror's base theme is scoped (.ͼ1 .cm-content), so plain .cm-* rules lose */
+.cm-editor .cm-content {
+  max-width: var(--line-width);
+  margin: 0 auto;
+  padding: 0 56px;
+  caret-color: var(--accent);
+}
+body.hide-sidebar .cm-editor .cm-content { padding: 0 72px; }
+
+.cm-editor .cm-line { padding: 0; }
+.cm-cursor, .cm-dropCursor { border-left: 2px solid var(--accent); }
+.cm-selectionBackground, ::selection { background: var(--selection) !important; }
+.cm-editor .cm-selectionMatch { background: var(--selection); }
+.cm-editor .cm-searchMatch { background: var(--search-hit); outline: 1px solid var(--accent-soft); }
+.cm-editor .cm-searchMatch-selected { background: var(--search-hit-active); }
+
+/* ------------------------------------------------------------------ headings */
+.cm-md-h1, .cm-md-h2, .cm-md-h3, .cm-md-h4, .cm-md-h5, .cm-md-h6 { font-weight: 680; line-height: 1.32; }
+/* vertical space on lines must be padding: CodeMirror's height map ignores line margins */
+.cm-md-h1 { font-size: 1.95em; padding-top: 1.1em; }
+.cm-md-h2 { font-size: 1.5em; padding-top: 1.1em; }
+.cm-md-h3 { font-size: 1.24em; padding-top: 1em; }
+.cm-md-h4 { font-size: 1.08em; padding-top: .9em; }
+.cm-md-h5 { font-size: 1em; padding-top: .9em; }
+.cm-md-h6 { font-size: .95em; padding-top: .9em; color: var(--fg-muted); }
+.cm-md-h1-line, .cm-md-h2-line { padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+
+/* -------------------------------------------------------------- inline marks */
+.md-em { font-style: italic; }
+.md-strong { font-weight: 700; }
+.md-strike { text-decoration: line-through; color: var(--fg-muted); }
+.md-mark { background: var(--highlight-bg); border-radius: 2px; }
+.md-sup { vertical-align: super; font-size: .78em; }
+.md-sub { vertical-align: sub; font-size: .78em; }
+.md-inline-code {
+  font-family: var(--mono);
+  font-size: .9em;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  background: var(--code-inline-bg);
+  color: var(--code-inline-fg, inherit);
+}
+.md-link { color: var(--link); text-decoration: none; }
+.md-image-src { color: var(--fg-faint); }
+.md-task-mark { color: var(--fg-faint); }
+.md-task { display: inline-flex; vertical-align: -2px; margin-right: 2px; }
+.md-task input[type='checkbox'] { width: 14px; height: 14px; accent-color: var(--accent); cursor: pointer; }
+.md-quote {
+  border-left: 3px solid var(--quote-bar);
+  padding-left: 14px !important;
+  color: var(--fg-muted);
+}
+.md-math-inline { padding: 0 1px; }
+
+/* --------------------------------------------------------------- block widgets */
+/* Block widgets sit directly in .cm-content, where CodeMirror's height map ignores
+   margins (clicks land on the wrong line) — so the gap around them is padding. */
+.md-block {
+  padding: 12px 0;
+}
+.md-codeblock { position: relative; }
+.md-pre {
+  margin: 0;
+  padding: 13px 16px;
+  border-radius: 7px;
+  background: var(--code-block-bg);
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: .86em;
+  line-height: 1.55;
+  cursor: text;
+}
+.md-pre.wrap code { white-space: pre-wrap; word-break: break-word; }
+.md-pre code { font-family: inherit; }
+.md-code-lang {
+  position: absolute;
+  top: 18px; right: 10px; /* 12px block padding + 6px */
+  font-size: 10.5px;
+  letter-spacing: .04em;
+  color: var(--fg-faint);
+  text-transform: lowercase;
+  pointer-events: none;
+}
+.md-code-line { display: inline-block; width: 100%; }
+.md-codeblock .md-pre code { counter-reset: line; }
+.md-codeblock .md-pre code .md-code-line::before {
+  counter-increment: line;
+  content: counter(line);
+  display: inline-block;
+  width: 2em;
+  margin-right: .8em;
+  text-align: right;
+  color: var(--fg-faint);
+}
+
+.md-mathblock {
+  text-align: center;
+  padding: 18px 0;
+  overflow-x: auto;
+  cursor: text;
+}
+.md-mathblock .katex-display { margin: 0; }
+
+.md-table { overflow-x: auto; cursor: text; }
+.md-table table.md-table-el,
+.markdown-body table {
+  border-collapse: collapse;
+  width: auto;
+  max-width: 100%;
+  font-size: .95em;
+  margin: 0 auto;
+}
+.md-table th, .md-table td,
+.markdown-body th, .markdown-body td {
+  border: 1px solid var(--table-border);
+  padding: 7px 13px;
+}
+.md-table th { background: var(--table-head); font-weight: 640; }
+.md-table tr:nth-child(even) td { background: var(--table-zebra); }
+
+/* in-place table editing */
+.md-table-edit { cursor: default; }
+.md-table-input th, .md-table-input td {
+  min-width: 3.5em;
+  outline: none;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: box-shadow .09s linear;
+}
+.md-table-input th:focus, .md-table-input td:focus {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: var(--accent-soft, rgba(120, 150, 220, .12));
+}
+.md-table-input th:empty::before, .md-table-input td:empty::before {
+  content: '\00a0';
+}
+.md-table-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-family: var(--ui-font);
+  font-size: 11px;
+  color: var(--fg-faint);
+  text-align: center;
+  opacity: .8;
+  user-select: none;
+}
+.md-table-menu-btn {
+  font-family: var(--ui-font);
+  font-size: 13px;
+  line-height: 1;
+  padding: 1px 6px;
+  border-radius: 4px;
+  color: var(--fg-muted);
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+}
+.md-table-menu-btn:hover { color: var(--fg); border-color: var(--fg-faint); }
+
+.md-tbl-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 168px;
+  padding: 4px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .18);
+  font-family: var(--ui-font);
+}
+.md-tbl-item {
+  display: block;
+  width: 100%;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  color: var(--fg);
+}
+.md-tbl-item:hover:not(:disabled) { background: var(--hover); }
+.md-tbl-item:disabled { opacity: .38; }
+.md-tbl-item.on::after { content: '✓'; float: right; color: var(--accent); }
+.md-tbl-sep { height: 1px; margin: 4px 2px; background: var(--border-soft); }
+
+.md-diagram { text-align: center; cursor: text; }
+.md-diagram-holder svg { max-width: 100%; height: auto; }
+.md-diagram-holder.error,
+.md-mathblock.error,
+.md-inline-image.error {
+  font-family: var(--mono);
+  font-size: .85em;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-radius: 6px;
+  padding: 8px 12px;
+  text-align: left;
+  white-space: pre-wrap;
+}
+.md-hr { border: none; padding: 18px 0; }
+.md-hr hr { border: none; border-top: 1px solid var(--border); margin: 0; }
+.md-inline-image img { max-width: 100%; border-radius: 4px; vertical-align: middle; }
+.md-inline-image { display: inline-block; position: relative; line-height: 0; }
+
+/* click-to-resize frame */
+.md-inline-image.resizing { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
+.md-img-handle {
+  position: absolute;
+  right: -7px;
+  bottom: -7px;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 2px solid var(--bg);
+  background: var(--accent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .3);
+  cursor: nwse-resize;
+  z-index: 2;
+}
+body.md-img-dragging { cursor: nwse-resize !important; user-select: none; }
+body.md-img-dragging * { cursor: nwse-resize !important; }
+
+/* ------------------------------------------------------------------ raw blocks */
+.cm-md-fence {
+  font-family: var(--mono);
+  font-size: .9em;
+  background: var(--code-block-bg);
+}
+.cm-md-math-raw, .cm-md-table-raw { font-family: var(--mono); font-size: .92em; }
+.cm-md-frontmatter {
+  font-family: var(--mono);
+  font-size: .85em;
+  color: var(--fg-faint);
+  background: var(--code-block-bg);
+}
+
+/* ------------------------------------------------------------------ math field */
+.md-math-edit {
+  /* old margin 8/12 + padding 8/10 + 2px left border */
+  padding: 16px 10px 22px 12px;
+  --frame-top: 8px;
+  --frame-bottom: 12px;
+}
+.md-math-edit .md-live-tag {
+  display: block;
+  font-family: var(--ui-font);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  margin-bottom: 4px;
+  user-select: none;
+}
+.md-math-input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  overflow: hidden;
+  border: none;
+  outline: none;
+  padding: 2px 0;
+  background: transparent;
+  color: var(--hl-string);
+  font-family: var(--mono);
+  font-size: .92em;
+  line-height: 1.55;
+}
+.md-math-input:focus { outline: none; }
+.md-math-preview {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  overflow-x: auto;
+  min-height: 1.2em;
+}
+.md-math-preview.empty { color: var(--fg-faint); font-size: .9em; }
+.md-math-preview.error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  font-family: var(--mono);
+  font-size: .82em;
+  white-space: pre-wrap;
+  padding: 6px 8px;
+  border-radius: 5px;
+}
+
+/* ------------------------------------------------------------------ live preview under source */
+.md-live {
+  /* old margin 2/10 + padding 6/10 + 2px left border */
+  padding: 8px 10px 20px 12px;
+  --frame-top: 2px;
+  --frame-bottom: 10px;
+  cursor: text;
+}
+/* The framed blocks draw their box on ::before, inset by --frame-top/--frame-bottom,
+   so the space outside the frame is still part of the widget's own height. */
+.md-math-edit, .md-live, .md-toc { position: relative; isolation: isolate; }
+.md-math-edit::before, .md-live::before, .md-toc::before {
+  content: '';
+  position: absolute;
+  inset: var(--frame-top) 0 var(--frame-bottom);
+  z-index: -1;
+  pointer-events: none;
+}
+.md-math-edit::before, .md-live::before {
+  border-left: 2px solid var(--accent-soft, var(--border));
+  border-radius: 0 6px 6px 0;
+  background: color-mix(in srgb, var(--bg) 94%, var(--fg) 6%);
+}
+.md-live-tag {
+  display: block;
+  font-family: var(--ui-font);
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  margin-bottom: 4px;
+  user-select: none;
+}
+.md-live-body { overflow-x: auto; }
+.md-live-diagram .md-live-body { text-align: center; }
+.md-live-body svg { max-width: 100%; height: auto; }
+.md-live-math .md-live-body { min-height: 1.2em; }
+.md-live-image .md-live-body figure { margin: 0; }
+.md-live-image .md-live-body img { max-width: 100%; border-radius: 4px; display: block; }
+.md-live-image .md-live-body figcaption {
+  font-family: var(--ui-font);
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  padding-top: 4px;
+}
+.md-live-image .md-live-body .error { color: var(--danger); font-family: var(--mono); font-size: .85em; }
+.md-live-body.pending, .md-live-body.empty { color: var(--fg-faint); font-size: .9em; }
+.md-live-body.error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  font-family: var(--mono);
+  font-size: .82em;
+  white-space: pre-wrap;
+  padding: 6px 8px;
+  border-radius: 5px;
+  text-align: left;
+}
+
+/* ------------------------------------------------------------------ focus mode */
+.cm-focus-dim { opacity: .26; }
+.cm-focus-dim, .cm-line { transition: opacity .18s ease; }
+
+/* ------------------------------------------------------------------ panels */
+.cm-editor .cm-panels {
+  background: var(--bg-elev);
+  color: var(--fg);
+  border-top: 1px solid var(--border);
+  font-family: var(--ui-font);
+  font-size: 12.5px;
+}
+.cm-editor .cm-panels.cm-panels-top { border-bottom: 1px solid var(--border); border-top: none; }
+.cm-panel.cm-search { padding: 8px 12px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.cm-panel.cm-search input[type='text'] {
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12.5px;
+  outline: none;
+}
+.cm-panel.cm-search button {
+  padding: 4px 9px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+.cm-panel.cm-search button:hover { background: var(--hover); }
+.cm-panel.cm-search label { color: var(--fg-muted); font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.cm-panel .cm-button { background-image: none; }
+.cm-editor .cm-tooltip {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+/* --------------------------------------------------------------- hljs palette */
+.hljs-comment, .hljs-quote { color: var(--hl-comment); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-type { color: var(--hl-keyword); }
+.hljs-string, .hljs-regexp, .hljs-addition, .hljs-attribute { color: var(--hl-string); }
+.hljs-number, .hljs-symbol, .hljs-bullet { color: var(--hl-number); }
+.hljs-title, .hljs-section, .hljs-name, .hljs-function .hljs-title { color: var(--hl-title); }
+.hljs-built_in, .hljs-class .hljs-title { color: var(--hl-builtin); }
+.hljs-variable, .hljs-template-variable, .hljs-params { color: var(--hl-variable); }
+.hljs-meta, .hljs-doctag { color: var(--hl-meta); }
+.hljs-deletion { color: var(--danger); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* --------------------------------------------------------------- table of contents */
+.md-toc {
+  /* old margin 4/14 + padding 12/14 + border 1px (3px left) */
+  padding: 17px 15px 27px 17px;
+  --frame-top: 4px;
+  --frame-bottom: 14px;
+}
+.md-toc::before {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent-soft, var(--accent));
+  border-radius: 8px;
+  background: var(--bg-elev);
+}
+.md-toc-title {
+  font-size: 11px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  margin-bottom: 8px;
+}
+.md-toc-list { display: flex; flex-direction: column; gap: 1px; }
+.md-toc-item {
+  display: block;
+  width: 100%;
+  padding: 3px 4px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--fg-soft, var(--fg));
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.45;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.md-toc-item:hover { background: var(--hover); color: var(--accent); }
+.md-toc-l1 { font-weight: 650; }
+.md-toc-l2 { font-size: 12.5px; }
+.md-toc-l3, .md-toc-l4, .md-toc-l5, .md-toc-l6 { font-size: 12px; color: var(--fg-muted); }
+.md-toc-empty { font-size: 12px; color: var(--fg-faint); font-style: italic; }
+
+/* --------------------------------------------------------------- footnotes */
+.md-fn-mark {
+  font-size: .72em;
+  font-weight: 650;
+  vertical-align: super;
+  line-height: 0;
+  margin-left: 1px;
+  padding: 0 2px;
+  border-radius: 3px;
+  color: var(--accent);
+  cursor: pointer;
+}
+.md-fn-mark:hover { background: var(--hover); }
+.md-fn-badge {
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .04em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--code-inline-bg);
+  color: var(--fg-muted);
+}
+.cm-md-fn-def { color: var(--fg-muted); }
+.mod-key .md-link { cursor: pointer; text-decoration: underline; }
+
+/* a little more air + a clickable feel */
+.md-toc-list { gap: 2px; }
+.md-toc-title { color: var(--fg-muted); font-weight: 650; margin-bottom: 10px; }
+.md-toc-item { padding: 4px 6px; border-radius: 5px; }
+.md-toc-item:hover { background: var(--hover); color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+
+/* the accent bar has to read in light themes too */
+.md-toc::before { border-left-color: var(--accent); }
+.md-toc-list { gap: 3px; }
+.md-toc-item { padding: 5px 8px; }
+.md-toc-l1 { margin-bottom: 2px; }
+.md-toc + .md-toc { padding-top: 13px; --frame-top: 0px; }

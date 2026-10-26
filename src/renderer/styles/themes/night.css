@@ -1,0 +1,50 @@
+/* Night — dark theme tuned for long writing sessions. */
+:root {
+  --bg: #1d1f21;
+  --bg-elev: #26292c;
+  --bg-sidebar: #1a1c1e;
+  --bg-titlebar: #17191b;
+  --fg: #d9dce1;
+  --fg-soft: #c8ccd2;
+  --fg-muted: #a3a9b2;
+  --fg-faint: #868d96;
+  --border: #313437;
+  --border-soft: #2a2d30;
+  --accent: #4d9bff;
+  --accent-soft: #2c4f7c;
+  --hover: #232629;
+  --selected: #2b3a4d;
+  --link: #6cb0ff;
+  --selection: #2f4d70;
+  --code-inline-bg: #2a2d31;
+  --code-inline-fg: #ff9d8a;
+  --code-block-bg: #202327;
+  --quote-bar: #454a4f;
+  --table-border: #34383c;
+  --table-head: #26292c;
+  --table-zebra: #212427;
+  --highlight-bg: #5a4a1a;
+  --search-hit: #5c4a17;
+  --search-hit-active: #8a6f1c;
+  --danger: #ff6b6b;
+  --danger-bg: #3a2325;
+  --hl-comment: #98a1ab;
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-number: #79c0ff;
+  --hl-title: #d2a8ff;
+  --hl-builtin: #ffa657;
+  --hl-variable: #d7dae0;
+  --hl-meta: #7ee787;
+  --font-body: 'Segoe UI', -apple-system, 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
+}
+
+/*
+body { background: var(--bg); }
+*/
+
+/* a hairline keeps the code block from melting into the page */
+body.theme-dark .md-pre,
+body.theme-dark .markdown-body pre.code-block { border: 1px solid #33383d; }
+body.theme-dark .md-toc { border-color: #33383d; }
+body.theme-dark .md-code-lang { color: var(--fg-muted); }

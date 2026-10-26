@@ -1,0 +1,125 @@
+/* Standalone content styles used by HTML/PDF export. */
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
+body { font-family: var(--font-body); font-size: 16px; line-height: 1.72; }
+
+.markdown-body {
+  max-width: var(--line-width);
+  margin: 0 auto;
+  padding: 40px 48px 64px;
+  word-wrap: break-word;
+}
+
+.markdown-body > *:first-child { margin-top: 0; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3,
+.markdown-body h4, .markdown-body h5, .markdown-body h6 {
+  font-weight: 680; line-height: 1.32; margin: 1.4em 0 .6em;
+}
+.markdown-body h1 { font-size: 1.95em; padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+.markdown-body h2 { font-size: 1.5em; padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+.markdown-body h3 { font-size: 1.24em; }
+.markdown-body h4 { font-size: 1.08em; }
+.markdown-body h5 { font-size: 1em; }
+.markdown-body h6 { font-size: .95em; color: var(--fg-muted); }
+
+.markdown-body p { margin: 0 0 1em; }
+.markdown-body a { color: var(--link); text-decoration: none; }
+.markdown-body strong { font-weight: 700; }
+.markdown-body em { font-style: italic; }
+.markdown-body del { color: var(--fg-muted); }
+.markdown-body mark { background: var(--highlight-bg); padding: 0 2px; }
+
+.markdown-body ul, .markdown-body ol { padding-left: 1.6em; margin: 0 0 1em; }
+.markdown-body li { margin: .25em 0; }
+.markdown-body li.task-list-item { list-style: none; margin-left: -1.3em; }
+.markdown-body input.task-checkbox { margin-right: .5em; accent-color: var(--accent); }
+
+.markdown-body blockquote {
+  margin: 1em 0;
+  padding: .2em 1em;
+  border-left: 3px solid var(--quote-bar);
+  color: var(--fg-muted);
+}
+.markdown-body blockquote > :last-child { margin-bottom: 0; }
+
+.markdown-body hr { border: none; border-top: 1px solid var(--border); margin: 2em 0; }
+
+.markdown-body code {
+  font-family: var(--mono);
+  font-size: .9em;
+  padding: 1.5px 5px;
+  border-radius: 4px;
+  background: var(--code-inline-bg);
+}
+.markdown-body pre.code-block {
+  position: relative;
+  background: var(--code-block-bg);
+  border-radius: 7px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  margin: 1em 0;
+}
+.markdown-body pre.code-block code {
+  background: none;
+  padding: 0;
+  font-size: .86em;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.markdown-body img { max-width: 100%; border-radius: 4px; }
+
+.markdown-body table {
+  border-collapse: collapse;
+  margin: 1em auto;
+  font-size: .95em;
+}
+
+.markdown-body .math-block { text-align: center; overflow-x: auto; margin: 1em 0; }
+.markdown-body .mermaid { text-align: center; margin: 1em 0; }
+.markdown-body .mermaid svg { max-width: 100%; height: auto; }
+.markdown-body .katex-error { color: var(--danger); font-family: var(--mono); }
+
+@page { size: A4; margin: 16mm; }
+@media print {
+  html, body { background: #fff; }
+  .markdown-body { max-width: none; padding: 0; }
+  .markdown-body pre.code-block, .markdown-body table, .markdown-body img { page-break-inside: avoid; }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3 { page-break-after: avoid; }
+}
+
+/* table of contents (from [TOC]) */
+.markdown-body nav.toc {
+  margin: 1.2em 0;
+  padding: 14px 18px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  background: var(--bg-elev);
+  font-size: .92em;
+}
+.markdown-body .toc-title {
+  font-size: .72em;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  margin-bottom: .5em;
+}
+.markdown-body nav.toc ul { list-style: none; margin: 0; padding-left: .9em; }
+.markdown-body nav.toc > ul { padding-left: 0; }
+.markdown-body nav.toc li { margin: .18em 0; }
+.markdown-body nav.toc a { color: var(--fg-soft, var(--fg)); }
+
+/* footnotes */
+.markdown-body sup.footnote-ref { font-size: .72em; line-height: 0; }
+.markdown-body sup.footnote-ref a { color: var(--accent); text-decoration: none; }
+.markdown-body section.footnotes {
+  margin-top: 2.4em;
+  padding-top: .8em;
+  border-top: 1px solid var(--border);
+  font-size: .9em;
+  color: var(--fg-muted);
+}
+.markdown-body section.footnotes ol { padding-left: 1.4em; }
+.markdown-body section.footnotes li { margin: .3em 0; }
+.markdown-body section.footnotes p { margin: 0; }
+.markdown-body a.footnote-back { text-decoration: none; color: var(--accent); }

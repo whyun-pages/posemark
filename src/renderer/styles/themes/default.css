@@ -1,0 +1,40 @@
+/* Default — a clean, GitHub-ish light theme. */
+:root {
+  --bg: #ffffff;
+  --bg-elev: #ffffff;
+  --bg-sidebar: #fafaf9;
+  --bg-titlebar: #f6f6f5;
+  --fg: #24292f;
+  --fg-soft: #3a4048;
+  --fg-muted: #6a737d;
+  --fg-faint: #9aa3ad;
+  --border: #e4e6e9;
+  --border-soft: #eef0f2;
+  --accent: #2f7ce0;
+  --accent-soft: #cfe2fb;
+  --hover: #f0f1f3;
+  --selected: #e8eeF8;
+  --link: #1f6feb;
+  --selection: #d7e6fb;
+  --code-inline-bg: #f2f3f5;
+  --code-inline-fg: #b3261e;
+  --code-block-bg: #f7f8fa;
+  --quote-bar: #d5d9de;
+  --table-border: #e2e5e9;
+  --table-head: #f6f7f9;
+  --table-zebra: #fbfbfc;
+  --highlight-bg: #fff3b8;
+  --search-hit: #ffe9a8;
+  --search-hit-active: #ffd54f;
+  --danger: #c62828;
+  --danger-bg: #fdecea;
+  --hl-comment: #6e7781;
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-number: #0550ae;
+  --hl-title: #8250df;
+  --hl-builtin: #953800;
+  --hl-variable: #24292f;
+  --hl-meta: #116329;
+  --font-body: 'Segoe UI', -apple-system, 'Microsoft YaHei UI', 'Noto Sans SC', system-ui, sans-serif;
+}
