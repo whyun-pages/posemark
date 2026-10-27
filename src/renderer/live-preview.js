@@ -21,13 +21,15 @@ import {
   DiagramLivePreviewWidget,
   ImageLivePreviewWidget,
   TocWidget,
+  headingOf,
   ctx,
 } from './blocks.js';
+import { emojiFor } from './emoji.js';
 
 // ---------------------------------------------------------------------------
 // scan cache (Text values are immutable, so a WeakMap keyed on them is safe)
 // ---------------------------------------------------------------------------
-const scanCache = new WeakMap();
+let scanCache = new WeakMap();
 function scan(doc) {
   let res = scanCache.get(doc);
   if (!res) {
@@ -133,6 +135,75 @@ class RuleWidget extends WidgetType {
     return div;
   }
 }
+
+class EmojiWidget extends WidgetType {
+  constructor(char, code) {
+    super();
+    this.char = char;
+    this.code = code;
+  }
+
+  eq(other) {
+    return other.char === this.char;
+  }
+
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = 'md-emoji';
+    span.textContent = this.char;
+    span.title = this.code;
+    return span;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+const ALERT_ICON = {
+  note: 'M8 1.5a6.5 6.5 0 1 1 0 13 6.5 6.5 0 0 1 0-13zm0 1.3a5.2 5.2 0 1 0 0 10.4A5.2 5.2 0 0 0 8 2.8zM8 7a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 7zm0-2.6a.9.9 0 1 1 0 1.8.9.9 0 0 1 0-1.8z',
+  tip: 'M8 1a4.5 4.5 0 0 1 2.6 8.2c-.4.3-.6.7-.6 1.1V11H6v-.7c0-.4-.2-.8-.6-1.1A4.5 4.5 0 0 1 8 1zm-2 11h4v1H6v-1zm.6 2h2.8c-.3.6-.8 1-1.4 1s-1.1-.4-1.4-1z',
+  important: 'M3.5 1.5h9A1.5 1.5 0 0 1 14 3v7a1.5 1.5 0 0 1-1.5 1.5H9l-2.6 2.6a.6.6 0 0 1-1-.4V11.5H3.5A1.5 1.5 0 0 1 2 10V3a1.5 1.5 0 0 1 1.5-1.5zM8 4a.75.75 0 0 0-.75.75v2.5a.75.75 0 0 0 1.5 0v-2.5A.75.75 0 0 0 8 4zm0 5a.9.9 0 1 0 0 1.8A.9.9 0 0 0 8 9z',
+  warning: 'M7.2 2.3a.95.95 0 0 1 1.6 0l6 10.4a.95.95 0 0 1-.8 1.4H2a.95.95 0 0 1-.8-1.4l6-10.4zM8 5.5a.75.75 0 0 0-.75.75v3a.75.75 0 0 0 1.5 0v-3A.75.75 0 0 0 8 5.5zm0 5.6a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8z',
+  caution: 'M5.1 1.5h5.8l4.1 4.1v5.8l-4.1 4.1H5.1L1 11.4V5.6l4.1-4.1zM8 4.5a.75.75 0 0 0-.75.75v3.5a.75.75 0 0 0 1.5 0v-3.5A.75.75 0 0 0 8 4.5zm0 6.3a.9.9 0 1 0 0 1.8.9.9 0 0 0 0-1.8z',
+};
+
+// The `[!NOTE]` line of a GitHub-style alert, drawn as an icon + label.
+class AlertTitleWidget extends WidgetType {
+  constructor(type) {
+    super();
+    this.type = type;
+  }
+
+  eq(other) {
+    return other.type === this.type;
+  }
+
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = `md-alert-title md-alert-title-${this.type}`;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('width', '16');
+    svg.setAttribute('height', '16');
+    const p = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    p.setAttribute('fill', 'currentColor');
+    p.setAttribute('d', ALERT_ICON[this.type] || ALERT_ICON.note);
+    svg.appendChild(p);
+    const label = document.createElement('span');
+    label.textContent = this.type[0].toUpperCase() + this.type.slice(1);
+    span.append(svg, label);
+    return span;
+  }
+
+  ignoreEvent() {
+    return true;
+  }
+}
+
+const ALERT_LINE_RE = /^( {0,3}>[ \t]*)\[!(note|tip|important|warning|caution)\][ \t]*$/i;
+// `[label]: url "title"` reference definitions (footnote definitions are handled separately)
+const REF_DEF_RE = /^ {0,3}\[((?!\^)[^\]]+)\]:[ \t]*(<[^>]*>|\S+)(?:[ \t]+("[^"]*"|'[^']*'|\([^)]*\)))?[ \t]*$/;
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -252,15 +323,21 @@ function buildInner(state) {
   const inlineCode = [];
   const inCode = (pos) => inlineCode.some(([f, t]) => pos >= f && pos <= t);
 
-  // ---- footnotes: definitions + numbered references ---------------------
   // ---- footnotes: definitions + numbered references ----------------------
   const fnDefs = new Map();
   const fnNum = new Map();
   const FN_DEF = /^ {0,3}\[\^([^\]]+)\]:[ \t]*(.*)$/;
   const FN_REF = /\[\^([^\]]+)\]/g;
+  // reference-style link definitions, so `[text][label]` and `[label]` can render as links
+  const refDefs = new Set();
   for (let n = 1; n <= doc.lines; n++) {
-    const m = FN_DEF.exec(doc.line(n).text);
+    const text = doc.line(n).text;
+    const m = FN_DEF.exec(text);
     if (m) fnDefs.set(m[1].toLowerCase(), { line: n, text: m[2], from: doc.line(n).from });
+    else if (text.includes(']:')) {
+      const rd = REF_DEF_RE.exec(text);
+      if (rd) refDefs.add(rd[1].trim().toLowerCase().replace(/\s+/g, ' '));
+    }
   }
   if (fnDefs.size) {
     for (let n = 1; n <= doc.lines; n++) {
@@ -278,6 +355,10 @@ function buildInner(state) {
   for (let n = 1; n <= doc.lines; n++) {
     const line = doc.line(n);
     if (insideReplaced(line.from) || inCode(line.from)) continue;
+    if (refDefs.size && line.text.includes(']:') && REF_DEF_RE.test(line.text)) {
+      decos.push(Decoration.line({ class: 'cm-md-ref-def' }).range(line.from));
+      continue;
+    }
     const fnDef = FN_DEF.exec(line.text);
     if (fnDef) {
       decos.push(Decoration.line({ class: 'cm-md-fn-def' }).range(line.from));
@@ -312,8 +393,25 @@ function buildInner(state) {
       if (/^ATXHeading[1-6]$/.test(name)) return;
 
       if (name === 'Blockquote') {
-        addLineClasses(node.from, node.to, 'md-quote');
+        // GitHub-style alert: `> [!NOTE]` on the first line colours the whole quote
+        const first = doc.lineAt(node.from);
+        const alert = ctx.config.githubAlerts !== false && ALERT_LINE_RE.exec(first.text);
+        if (alert) {
+          const type = alert[2].toLowerCase();
+          addLineClasses(node.from, node.to, `md-quote md-alert md-alert-${type}`);
+          const from = first.from + alert[1].length;
+          const to = first.to;
+          if (active.has(first.number)) decos.push(Decoration.mark({ class: 'md-alert-mark' }).range(from, to));
+          else pushReplace(from, to, Decoration.replace({ widget: new AlertTitleWidget(type) }));
+        } else addLineClasses(node.from, node.to, 'md-quote');
         return;
+      }
+      if (name === 'Emoji') {
+        if (lineActive(node.from)) return false;
+        const code = doc.sliceString(node.from, node.to);
+        const char = ctx.config.emoji !== false && emojiFor(code.slice(1, -1));
+        if (char) pushReplace(node.from, node.to, Decoration.replace({ widget: new EmojiWidget(char, code) }));
+        return false;
       }
       if (name === 'FencedCode' || name === 'CodeBlock') {
         addLineClasses(node.from, node.to, 'cm-md-fence');
@@ -347,11 +445,21 @@ function buildInner(state) {
         return;
       }
       if (name === 'Link') {
+        const raw = doc.sliceString(node.from, node.to);
+        if (/^\[![a-z]+\]$/i.test(raw) && insideReplaced(node.from + 1)) return false; // alert marker
+        let close = raw.lastIndexOf('](');
+        if (close < 0) {
+          // reference-style: `[text][label]`, `[label][]` or plain `[label]` — a link only
+          // when the label is defined somewhere in the document
+          const ref = /^\[((?:[^\]\\]|\\.)*)\](?:\[((?:[^\]\\]|\\.)*)\])?$/.exec(raw);
+          if (!ref) return false;
+          const label = (ref[2] || ref[1]).trim().toLowerCase().replace(/\s+/g, ' ');
+          if (!label || !refDefs.has(label)) return; // not a link: let inner emphasis render
+          close = ref[2] !== undefined ? raw.lastIndexOf('][') : raw.length - 1;
+        }
         decos.push(Decoration.mark({ class: 'md-link' }).range(node.from, node.to));
         if (!lineActive(node.from)) {
-          const raw = doc.sliceString(node.from, node.to);
           if (raw.startsWith('[')) pushReplace(node.from, node.from + 1, Decoration.replace({}));
-          const close = Math.max(raw.lastIndexOf(']('), raw.lastIndexOf(']['));
           if (close > 0) pushReplace(node.from + close, node.to, Decoration.replace({}));
         }
         return false;
@@ -381,10 +489,18 @@ function buildInner(state) {
   });
 
   // ---- line-scanned constructs: task boxes, inline math, extra syntax -----
+  const lenient = ctx.config.strictMode === false;
   for (let n = 1; n <= doc.lines; n++) {
     const line = doc.line(n);
     const skip = insideReplaced(line.from) || inCode(line.from);
     if (skip) continue;
+
+    // `#Title` without the space (strict mode off): the scan already classed the line as a
+    // heading; lezer sees a paragraph, so the marker is hidden here instead of via HeaderMark
+    if (lenient && !active.has(n) && line.text.startsWith('#') && !/^#{1,6}[ \t#]/.test(line.text) && !inFrontMatter(line.from)) {
+      const h = headingOf(line.text);
+      if (h) pushReplace(line.from, line.from + h.marker.length, Decoration.replace({}));
+    }
 
     const task = /^(\s*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](?=\s)/.exec(line.text);
     if (task) {
@@ -444,6 +560,14 @@ function buildInner(state) {
   return Decoration.set(decos, true);
 }
 
+/** Dispatch this to rebuild the decorations after a preference change (alerts, emoji, strict mode). */
+export const refreshPreviewEffect = StateEffect.define();
+
+export function refreshLivePreview(view) {
+  scanCache = new WeakMap(); // the block scan depends on settings too (strict-mode headings)
+  view.dispatch({ effects: refreshPreviewEffect.of(true) });
+}
+
 export const livePreviewField = StateField.define({
   create(state) {
     try {
@@ -454,7 +578,8 @@ export const livePreviewField = StateField.define({
     }
   },
   update(deco, tr) {
-    if (!tr.docChanged && !tr.selection) return deco;
+    const forced = tr.effects.some((e) => e.is(refreshPreviewEffect));
+    if (!tr.docChanged && !tr.selection && !forced) return deco;
     try {
       return buildInner(tr.state);
     } catch (err) {

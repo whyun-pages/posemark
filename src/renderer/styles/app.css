@@ -516,3 +516,57 @@ body.resizing { cursor: col-resize; user-select: none; }
     linear-gradient(to top right, transparent 52%, currentColor 52% 66%, transparent 66%);
 }
 .drop-hint[hidden] { display: none; }
+
+/* ---------------- file tree: other file types ---------------- */
+.tree-item.other .tree-label { color: var(--fg-faint); }
+.ctx-key:empty { display: none; }
+
+/* ---------------- search in folder ---------------- */
+.search-bar { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px 6px; }
+#search-input {
+  width: 100%;
+  padding: 6px 9px;
+  font-size: 12.5px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--fg);
+  outline: none;
+}
+#search-input:focus { border-color: var(--accent); }
+.search-opts { display: flex; gap: 4px; }
+.search-opt {
+  padding: 2px 7px;
+  font-size: 11px;
+  font-family: var(--mono);
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  color: var(--fg-muted);
+}
+.search-opt:hover { background: var(--hover); color: var(--fg); }
+.search-opt.on { background: var(--accent-soft); border-color: var(--accent); color: var(--fg); }
+.search-summary { padding: 2px 12px 6px; font-size: 11.5px; color: var(--fg-faint); }
+.search-summary:empty { display: none; }
+.search-results { flex: 1; overflow: auto; padding-bottom: 20px; font-size: 12.5px; }
+.search-file {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 5px 12px 3px;
+  cursor: pointer;
+  white-space: nowrap; overflow: hidden;
+  position: sticky; top: 0;
+  background: var(--bg-sidebar);
+}
+.search-file-name { font-weight: 600; color: var(--fg); }
+.search-file-dir { font-size: 11px; color: var(--fg-faint); overflow: hidden; text-overflow: ellipsis; }
+.search-group.collapsed .search-hit { display: none; }
+.search-hit {
+  display: flex; gap: 8px;
+  padding: 2px 12px 2px 16px;
+  cursor: pointer;
+  white-space: nowrap; overflow: hidden;
+  color: var(--fg-soft, var(--fg));
+}
+.search-hit:hover { background: var(--hover); }
+.search-line { flex: 0 0 2.6em; text-align: right; color: var(--fg-faint); font-size: 11px; font-family: var(--mono); }
+.search-text { overflow: hidden; text-overflow: ellipsis; }
+.search-text mark { background: var(--search-hit); color: inherit; border-radius: 2px; padding: 0 1px; }

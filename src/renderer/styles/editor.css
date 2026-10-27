@@ -499,3 +499,43 @@ body.md-img-dragging * { cursor: nwse-resize !important; }
 .md-toc-item { padding: 5px 8px; }
 .md-toc-l1 { margin-bottom: 2px; }
 .md-toc + .md-toc { padding-top: 13px; --frame-top: 0px; }
+
+/* --------------------------------------------------------------- emoji + reference links */
+.md-emoji { font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif; }
+.cm-md-ref-def { color: var(--fg-faint); font-size: .92em; }
+
+/* --------------------------------------------------------------- GitHub-style alerts */
+.md-alert { --alert: var(--accent); border-left-color: var(--alert); color: var(--fg); }
+.md-alert-note { --alert: #1f6feb; }
+.md-alert-tip { --alert: #1a7f37; }
+.md-alert-important { --alert: #8250df; }
+.md-alert-warning { --alert: #9a6700; }
+.md-alert-caution { --alert: #cf222e; }
+body.theme-dark .md-alert-note { --alert: #4493f8; }
+body.theme-dark .md-alert-tip { --alert: #3fb950; }
+body.theme-dark .md-alert-important { --alert: #ab7df8; }
+body.theme-dark .md-alert-warning { --alert: #d29922; }
+body.theme-dark .md-alert-caution { --alert: #f85149; }
+.md-alert-title {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--ui-font);
+  font-weight: 650;
+  color: var(--alert);
+  user-select: none;
+}
+.md-alert-title svg { flex: 0 0 auto; }
+.md-alert-mark { color: var(--alert); font-weight: 650; }
+
+/* --------------------------------------------------------------- emoji autocomplete */
+.cm-editor .cm-tooltip.cm-tooltip-autocomplete {
+  font-family: var(--ui-font);
+  font-size: 12.5px;
+  border-radius: 7px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .2);
+}
+.cm-editor .cm-tooltip-autocomplete > ul { font-family: var(--ui-font); max-height: 260px; }
+.cm-editor .cm-tooltip-autocomplete > ul > li { padding: 3px 10px; display: flex; align-items: center; gap: 8px; }
+.cm-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--selected); color: var(--fg); }
+.cm-editor .cm-completionLabel { font-family: var(--mono); font-size: 12px; }
+.cm-editor .cm-completionDetail { margin-left: auto; font-style: normal; font-size: 15px; }
+.cm-editor .cm-completionMatchedText { text-decoration: none; color: var(--accent); font-weight: 650; }

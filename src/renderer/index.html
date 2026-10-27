@@ -33,16 +33,30 @@
       <div class="side-tabs">
         <button class="side-tab active" data-tab="files">Files</button>
         <button class="side-tab" data-tab="outline">Outline</button>
+        <button class="side-tab" data-tab="search" title="Search in folder (Ctrl+Shift+F)">Search</button>
       </div>
       <div class="side-panel" id="panel-files">
         <div class="folder-bar">
           <span id="folder-name" title="No folder opened">No folder opened</span>
+          <button class="mini-btn" id="btn-tree-menu" title="Sort and filter" hidden>⋯</button>
           <button class="mini-btn" id="btn-open-folder" title="Open folder">+</button>
         </div>
         <div id="filetree" class="filetree"></div>
       </div>
       <div class="side-panel" id="panel-outline" hidden>
         <div id="outline" class="outline"></div>
+      </div>
+      <div class="side-panel" id="panel-search" hidden>
+        <div class="search-bar">
+          <input id="search-input" type="text" placeholder="Search in folder…" autocomplete="off" spellcheck="false" />
+          <div class="search-opts">
+            <button class="search-opt" data-opt="caseSensitive" title="Match case">Aa</button>
+            <button class="search-opt" data-opt="wholeWord" title="Whole word">ab</button>
+            <button class="search-opt" data-opt="regex" title="Regular expression">.*</button>
+          </div>
+        </div>
+        <div id="search-summary" class="search-summary"></div>
+        <div id="search-results" class="search-results"></div>
       </div>
     </aside>
 

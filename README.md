@@ -108,6 +108,15 @@ Right-click anything in the file tree for new file / new folder / rename / trash
 
 - ATX / setext headings with per-level typography, horizontal rules, quotes, bullet/ordered lists
 - Bold, italic, strikethrough, `==highlight==`, `H~2~O`, `X^2^`, inline code, links (bracket + URL hidden)
+- Reference-style links: `[text][label]` and bare `[label]` render as links once a `[label]: url` line
+  exists; the definition lines are dimmed, and `Ctrl`+click follows them like any other link
+- **Emoji shortcodes**: `:smile:` renders as 😄 (GitHub names); typing `:` plus a few letters pops up an
+  autocomplete list
+- **GitHub-style alerts**: a quote starting with `> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]` or
+  `[!CAUTION]` gets an icon, a label and a coloured bar, in the editor and in every export
+  (`Paragraph › Alert` wraps the selection)
+- **Strict mode** switch (Preferences › Markdown): off, `#Title` without the space still counts as a
+  heading, like Typora; **preserve single line breaks** carries the editor's line breaks into exports
 - Task lists with clickable checkboxes (`- [ ]` / `- [x]`)
 - Fenced code blocks rendered with highlight.js, optional line numbers and soft wrap
 - Putting the caret inside a fence un-renders it to source **with the code still syntax-highlighted**
@@ -151,11 +160,26 @@ Right-click anything in the file tree for new file / new folder / rename / trash
   inserted, same as the file drop
 - **Smart typography** while typing: `--` → —, `...` → …, straight quotes → curly quotes, skipped
   inside code and at the start of a line (so `---` still makes a rule). Toggle off in Preferences.
+- **Auto pair**: `(`, `[`, `{` (and quotes while smart typography is off) close themselves, typing the
+  closer steps over it, Backspace removes an empty pair. The Markdown markers pair too: `*`, `_`, `` ` ``
+  and `$` close themselves (`**` gives `**|**`), and typing `*`, `_`, `~`, `=`, `^`, `` ` `` or `$` with a
+  selection wraps it. Both halves can be switched off in Preferences › Editor.
+- **Smart paste**: rich text on the clipboard (a web page, Word, Google Docs, another editor) is
+  converted to Markdown on `Ctrl+V` (headings, lists, tables, code, links, images, alerts…). Copies from
+  code editors are detected and pasted as-is; `Ctrl+Shift+V` always pastes the plain text.
 - `Shift+Enter` inside a table cell inserts `<br>` instead of ending the cell
 
 **Workspace**
 
 - Open file / open folder, file tree with expand-collapse, quick open (`Ctrl+P`), recent files
+- **File tree sorting and filters** (the `⋯` button or the sidebar's right-click menu): natural / name /
+  modified / created order, ascending or descending, show hidden files, show all file types (other
+  files open in their default app)
+- **The folder is watched**: files created, renamed or removed outside the app show up in the tree,
+  and if the open document is rewritten on disk it is reloaded in place (unless you have unsaved edits,
+  in which case you get a notice instead)
+- **Search in folder** (`Ctrl+Shift+F`, the Search tab): matches grouped by file with the line number,
+  case / whole word / regex toggles; clicking a hit opens the file and selects the match
 - **File tree operations**: right-click a row (or the sidebar background) for New File, New Folder,
   Rename (`F2`), Move to Trash (`Del`, goes to the recycle bin), Reveal in File Explorer, Copy Path.
   Renaming is inline, keeps the extension, refuses to overwrite, and follows the open document
@@ -263,7 +287,8 @@ docs/            screenshots
 | Bold / Italic / Code / Strike / Highlight | `Ctrl+B` / `Ctrl+I` / `Ctrl+Shift+\`` / `Alt+Shift+5` / `Ctrl+Shift+H` |
 | Insert link / image | `Ctrl+K` / `Ctrl+Shift+I` |
 | Table / Code fence / Math block | `Ctrl+T` / — / `Ctrl+Shift+M` |
-| Sidebar / Outline | `Ctrl+Shift+L` / `Ctrl+Shift+1` |
+| Sidebar / Outline / Search / Files | `Ctrl+Shift+L` / `Ctrl+Shift+1` / `Ctrl+Shift+2` / `Ctrl+Shift+3` |
+| Find in folder / Paste as plain text | `Ctrl+Shift+F` / `Ctrl+Shift+V` |
 | Export PDF / Print | `Ctrl+P` |
 | Copy for WeChat | `Ctrl+Alt+C` |
 | Rename / Move to trash (file tree) | `F2` / `Del` |
@@ -273,5 +298,6 @@ docs/            screenshots
 - Editing the *inside* of a rendered formula (picking a sub-expression in the KaTeX tree) — the field
   is whole-TeX, not structural. Tables, code, mermaid and images are all editable in place now.
 - Pandoc export (docx / EPUB / LaTeX), image uploaders, spell-check dictionaries beyond Chromium's.
-- Auto-pairing of brackets/quotes while typing, math auto-numbering, emoji autocomplete.
+- Math auto-numbering and `\label`/`\ref`; `sequence` / `flow` diagram languages (only Mermaid).
+- Strict mode only relaxes headings; list indentation still follows GFM.
 - Multiple windows or tabs: one document per window, like Typora.

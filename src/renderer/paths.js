@@ -5,6 +5,13 @@ export const ctx = {
     lineNumbersInCode: false,
     codeWrap: true,
     inlineMath: true,
+    emoji: true,
+    githubAlerts: true,
+    strictMode: true,
+    preserveLineBreaks: false,
+    autoPairBrackets: true,
+    autoPairMarkdown: true,
+    emojiAutocomplete: true,
   },
 };
 

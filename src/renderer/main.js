@@ -18,6 +18,7 @@ import {
   insertRule,
   insertLink,
   insertImage,
+  insertAlert,
   clearStyle,
   toggleWrap,
   setSourceMode,
@@ -27,9 +28,12 @@ import {
   gotoLine,
   openFind,
   docStats,
+  inCodeAt,
   ctx,
 } from './editor.js';
-import { scanBlocks } from './blocks.js';
+import { refreshLivePreview } from './live-preview.js';
+import { scanBlocks, headingOf } from './blocks.js';
+import { htmlToMarkdown, htmlLooksPlain } from './html2md.js';
 import { renderFragment, buildStandaloneHtml, splitFrontMatter, slugify } from './markdown.js';
 import { buildWeChatFragment } from './wechat.js';
 import { renderWeChatPanel, wechatStyleFrom } from './wechat-prefs.js';
@@ -56,9 +60,12 @@ const S = {
   zoom: 1,
   treeCache: new Map(),
   treeSel: null,
+  expanded: new Set(),
+  mtime: 0,
   loading: false,
   outline: [],
   wordCountVisible: true,
+  search: { query: '', caseSensitive: false, wholeWord: false, regex: false, results: null },
 };
 
 const WELCOME = `# Posemark
@@ -155,8 +162,9 @@ async function openPath(p) {
     if (!ok) return;
   }
   try {
-    const { content } = await window.ink.readFile(p);
+    const { content, mtime } = await window.ink.readFile(p);
     S.path = p;
+    S.mtime = mtime || 0;
     ctx.docPath = p;
     S.loading = true;
     setDoc(S.view, content);
@@ -179,6 +187,7 @@ async function newDocument() {
     if (!ok) return;
   }
   S.path = null;
+  S.mtime = 0;
   S.dirty = false;
   ctx.docPath = S.folder || null;
   S.loading = true;
@@ -201,14 +210,59 @@ async function save({ saveAs = false } = {}) {
     if (!target) return false;
     S.path = target;
     ctx.docPath = target;
+    const st = await window.ink.stat(target);
+    S.mtime = st ? st.mtime : 0;
     if (!S.folder) setFolder(dirOf(target), { persist: false });
   } else {
-    await window.ink.writeFile(S.path, content);
+    S.mtime = (await window.ink.writeFile(S.path, content)) || S.mtime;
   }
   S.dirty = false;
   updateTitle();
   refreshTree();
   return true;
+}
+
+// The open file was rewritten by another program: pick up the new content in place.
+async function reloadFromDisk() {
+  if (!S.path) return;
+  let res;
+  try {
+    res = await window.ink.readFile(S.path);
+  } catch {
+    return;
+  }
+  const view = S.view;
+  const sel = view.state.selection.main;
+  const scroll = view.scrollDOM.scrollTop;
+  S.loading = true;
+  view.dispatch({
+    changes: { from: 0, to: view.state.doc.length, insert: res.content },
+    selection: { anchor: Math.min(sel.anchor, res.content.length), head: Math.min(sel.head, res.content.length) },
+  });
+  S.loading = false;
+  view.scrollDOM.scrollTop = scroll;
+  S.mtime = res.mtime || 0;
+  S.dirty = false;
+  updateTitle();
+  renderOutline();
+  updateStatus();
+  flashMessage(`Reloaded ${basename(S.path)} (changed on disk)`);
+}
+
+async function checkExternalChange() {
+  if (!S.path) return;
+  const st = await window.ink.stat(S.path);
+  if (!st) {
+    flashMessage(`${basename(S.path)} was moved or deleted`);
+    return;
+  }
+  if (!S.mtime || Math.abs(st.mtime - S.mtime) < 1) return;
+  if (S.dirty || S.config.reloadOnExternalChange === false) {
+    S.mtime = st.mtime;
+    flashMessage(`${basename(S.path)} changed on disk — your unsaved edits are kept`);
+    return;
+  }
+  await reloadFromDisk();
 }
 
 async function maybeSaveBeforeSwitch() {
@@ -467,6 +521,28 @@ function treeMenuItems(target) {
   return items;
 }
 
+// Sort order / hidden files / file types for the sidebar (the ⋯ button and the background menu).
+function treeViewMenuItems() {
+  const setTree = async (patch) => {
+    S.config = await window.ink.setConfig(patch);
+    await refreshTree();
+  };
+  const sort = S.config.treeSort || 'natural';
+  const check = (on) => (on ? '✓' : '');
+  return [
+    { label: 'Sort by Name', hint: check(sort === 'name'), run: () => setTree({ treeSort: 'name' }) },
+    { label: 'Sort Naturally', hint: check(sort === 'natural'), run: () => setTree({ treeSort: 'natural' }) },
+    { label: 'Sort by Modified Date', hint: check(sort === 'mtime'), run: () => setTree({ treeSort: 'mtime' }) },
+    { label: 'Sort by Created Date', hint: check(sort === 'ctime'), run: () => setTree({ treeSort: 'ctime' }) },
+    { label: 'Descending', hint: check(S.config.treeSortDesc), run: () => setTree({ treeSortDesc: !S.config.treeSortDesc }) },
+    '-',
+    { label: 'Show Hidden Files', hint: check(S.config.treeShowHidden), run: () => setTree({ treeShowHidden: !S.config.treeShowHidden }) },
+    { label: 'Show All File Types', hint: check(S.config.treeShowAllFiles), run: () => setTree({ treeShowAllFiles: !S.config.treeShowAllFiles }) },
+    '-',
+    { label: 'Refresh', run: () => refreshTree() },
+  ];
+}
+
 function wireTree() {
   const host = $('#filetree');
   host.addEventListener('contextmenu', (e) => {
@@ -484,8 +560,16 @@ function wireTree() {
         { label: 'New Folder', run: () => createItemIn(S.folder, 'dir') },
         '-',
         { label: 'Reveal Folder', run: () => window.ink.reveal(S.folder) },
+        '-',
+        ...treeViewMenuItems(),
       ]);
     }
+  });
+
+  $('#btn-tree-menu').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const r = e.currentTarget.getBoundingClientRect();
+    openCtxMenu(r.left, r.bottom + 2, treeViewMenuItems());
   });
 
   host.addEventListener('click', (e) => {
@@ -520,12 +604,23 @@ function wireTree() {
 // file tree
 // ---------------------------------------------------------------------------
 async function setFolder(dir, { persist = true } = {}) {
+  if (!samePath(dir, S.folder)) S.expanded = new Set();
   S.folder = dir;
   S.treeCache.clear();
   $('#folder-name').textContent = dir ? basename(dir) : 'No folder opened';
   $('#folder-name').title = dir || '';
+  $('#btn-tree-menu').hidden = !dir;
   if (persist && dir) await window.ink.setConfig({ lastFolder: dir });
+  window.ink.watchFolder(dir || null);
   renderTree();
+}
+
+// The folder watcher in the main process: refresh the tree, and pick up external edits
+// to the open file.
+const scheduleTreeRefresh = debounce(() => refreshTree(), 250);
+function onTreeChanged({ paths = [] } = {}) {
+  scheduleTreeRefresh();
+  if (S.path && paths.some((p) => samePath(p, S.path) || samePath(p, dirOf(S.path)))) checkExternalChange();
 }
 
 async function renderTree() {
@@ -550,7 +645,7 @@ async function fillTree(dir, container, depth) {
   }
   for (const entry of entries) {
     const row = document.createElement('div');
-    row.className = `tree-item ${entry.dir ? 'dir' : 'file'}`;
+    row.className = `tree-item ${entry.dir ? 'dir' : 'file'}${entry.markdown === false ? ' other' : ''}`;
     row.dataset.path = entry.path;
     row.style.paddingLeft = `${depth * 12 + 10}px`;
     const twisty = document.createElement('span');
@@ -567,15 +662,31 @@ async function fillTree(dir, container, depth) {
       children.className = 'tree-children';
       children.hidden = true;
       container.appendChild(children);
-      row.addEventListener('click', async () => {
-        children.hidden = !children.hidden;
-        twisty.textContent = children.hidden ? '▸' : '▾';
-        if (!children.hidden && !children.dataset.loaded) {
+      const open = async () => {
+        children.hidden = false;
+        twisty.textContent = '▾';
+        S.expanded.add(norm(entry.path).toLowerCase());
+        if (!children.dataset.loaded) {
           children.dataset.loaded = '1';
           await fillTree(entry.path, children, depth + 1);
           highlightTreeSelection();
         }
+      };
+      row.addEventListener('click', async () => {
+        if (!children.hidden) {
+          children.hidden = true;
+          twisty.textContent = '▸';
+          S.expanded.delete(norm(entry.path).toLowerCase());
+          return;
+        }
+        await open();
       });
+      // folders that were open before a refresh stay open
+      if (S.expanded.has(norm(entry.path).toLowerCase())) await open();
+    } else if (entry.markdown === false) {
+      // non-Markdown files (when "show all file types" is on) open in their own app
+      row.title = 'Open with the default application';
+      row.addEventListener('click', () => window.ink.openPath(entry.path));
     } else {
       row.addEventListener('click', () => openPath(entry.path));
     }
@@ -641,6 +752,140 @@ function renderQuickList(query) {
   });
 }
 
+// ---------------------------------------------------------------------------
+// search across the folder (sidebar › Search, Ctrl+Shift+F)
+// ---------------------------------------------------------------------------
+function openSearchPanel(prefill) {
+  document.body.classList.remove('hide-sidebar');
+  switchTab('search');
+  const input = $('#search-input');
+  if (prefill) input.value = prefill;
+  input.focus();
+  input.select();
+}
+
+async function runSearch() {
+  const input = $('#search-input');
+  const query = input.value;
+  S.search.query = query;
+  const host = $('#search-results');
+  if (!S.folder) {
+    host.innerHTML = '<div class="empty-hint">Open a folder first</div>';
+    return;
+  }
+  if (!query.trim()) {
+    host.innerHTML = '';
+    $('#search-summary').textContent = '';
+    return;
+  }
+  $('#search-summary').textContent = 'Searching…';
+  const res = await window.ink.searchFolder({
+    dir: S.folder,
+    query,
+    caseSensitive: S.search.caseSensitive,
+    wholeWord: S.search.wholeWord,
+    regex: S.search.regex,
+  });
+  if (query !== $('#search-input').value) return; // a newer search is on its way
+  S.search.results = res;
+  renderSearchResults(res);
+}
+
+function renderSearchResults(res) {
+  const host = $('#search-results');
+  const summary = $('#search-summary');
+  host.innerHTML = '';
+  if (res.error) {
+    summary.textContent = '';
+    host.innerHTML = `<div class="empty-hint">Invalid pattern: ${escapeHtml(res.error)}</div>`;
+    return;
+  }
+  const n = res.results.length;
+  summary.textContent = n
+    ? `${n}${res.truncated ? '+' : ''} result${n === 1 ? '' : 's'} in ${res.files} file${res.files === 1 ? '' : 's'}`
+    : `No results in ${res.scanned} file${res.scanned === 1 ? '' : 's'}`;
+  if (!n) return;
+  let currentFile = null;
+  let group = null;
+  for (const hit of res.results) {
+    if (!samePath(hit.path, currentFile)) {
+      currentFile = hit.path;
+      group = document.createElement('div');
+      group.className = 'search-group';
+      const head = document.createElement('div');
+      head.className = 'search-file';
+      const name = document.createElement('span');
+      name.className = 'search-file-name';
+      name.textContent = basename(hit.path);
+      const dir = document.createElement('span');
+      dir.className = 'search-file-dir';
+      const rel = norm(hit.path).slice(norm(S.folder).length).replace(/^\/+/, '');
+      dir.textContent = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+      head.append(name, dir);
+      head.addEventListener('click', () => group.classList.toggle('collapsed'));
+      group.appendChild(head);
+      host.appendChild(group);
+    }
+    const row = document.createElement('div');
+    row.className = 'search-hit';
+    const ln = document.createElement('span');
+    ln.className = 'search-line';
+    ln.textContent = String(hit.line);
+    const text = document.createElement('span');
+    text.className = 'search-text';
+    const mark = document.createElement('mark');
+    mark.textContent = hit.match;
+    text.append(document.createTextNode(hit.before), mark, document.createTextNode(hit.after));
+    row.append(ln, text);
+    row.addEventListener('click', () => openSearchHit(hit));
+    group.appendChild(row);
+  }
+}
+
+async function openSearchHit(hit) {
+  if (!samePath(hit.path, S.path)) {
+    await openPath(hit.path);
+    if (!samePath(hit.path, S.path)) return; // the switch was cancelled
+  }
+  const view = S.view;
+  const doc = view.state.doc;
+  if (hit.line < 1 || hit.line > doc.lines) return;
+  const line = doc.line(hit.line);
+  const anchor = Math.min(line.from + hit.col, line.to);
+  const head = Math.min(anchor + hit.len, line.to);
+  view.dispatch({
+    selection: { anchor, head },
+    effects: EditorView.scrollIntoView(anchor, { y: 'center' }),
+  });
+  view.focus();
+}
+
+function wireSearch() {
+  const input = $('#search-input');
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runSearch();
+    } else if (e.key === 'Escape') {
+      input.blur();
+      S.view.focus();
+    }
+  });
+  input.addEventListener('input', debounce(() => runSearch(), 350));
+  for (const btn of document.querySelectorAll('.search-opt')) {
+    const key = btn.dataset.opt;
+    btn.classList.toggle('on', !!S.search[key]);
+    btn.addEventListener('click', () => {
+      S.search[key] = !S.search[key];
+      btn.classList.toggle('on', S.search[key]);
+      runSearch();
+    });
+  }
+}
+
+const escapeHtml = (s) =>
+  String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
 function quickKeyboard(e) {
   const list = $('#quick-open-list');
   const items = [...list.querySelectorAll('.quick-item')];
@@ -677,7 +922,29 @@ const PREF_SECTIONS = [
       },
       {
         title: 'Files',
-        fields: [{ key: 'defaultExtension', label: 'Default file extension', type: 'text', hint: 'Used for new files and Save As' }],
+        fields: [
+          { key: 'defaultExtension', label: 'Default file extension', type: 'text', hint: 'Used for new files and Save As' },
+          {
+            key: 'reloadOnExternalChange',
+            label: 'Reload the open file when it changes on disk',
+            type: 'bool',
+            hint: 'Only while it has no unsaved edits',
+          },
+        ],
+      },
+      {
+        title: 'File tree',
+        fields: [
+          {
+            key: 'treeSort',
+            label: 'Sort files',
+            type: 'select',
+            options: [['natural', 'Naturally (1, 2, 10)'], ['name', 'By name'], ['mtime', 'By modified date'], ['ctime', 'By created date']],
+          },
+          { key: 'treeSortDesc', label: 'Descending order', type: 'bool' },
+          { key: 'treeShowHidden', label: 'Show hidden files and folders', type: 'bool' },
+          { key: 'treeShowAllFiles', label: 'Show all file types', type: 'bool', hint: 'Other files open in their default application' },
+        ],
       },
     ],
   },
@@ -710,7 +977,26 @@ const PREF_SECTIONS = [
         title: 'Typing',
         fields: [
           { key: 'smartTypography', label: 'Smart typography', type: 'bool', hint: '-- → —, ... → …, straight quotes → curly quotes' },
+          { key: 'autoPairBrackets', label: 'Auto pair brackets and quotes', type: 'bool', hint: '( [ { and " \' — quotes only while smart typography is off' },
+          {
+            key: 'autoPairMarkdown',
+            label: 'Auto pair Markdown syntax',
+            type: 'bool',
+            hint: '* _ ` $ close themselves; typing * ~ = ^ ` with a selection wraps it',
+          },
+          { key: 'emojiAutocomplete', label: 'Suggest emoji after typing :', type: 'bool' },
           { key: 'spellcheck', label: 'Spell check', type: 'bool' },
+        ],
+      },
+      {
+        title: 'Clipboard',
+        fields: [
+          {
+            key: 'pasteHtmlAsMarkdown',
+            label: 'Convert rich text to Markdown when pasting',
+            type: 'bool',
+            hint: 'Ctrl+Shift+V always pastes the plain text',
+          },
         ],
       },
     ],
@@ -719,7 +1005,26 @@ const PREF_SECTIONS = [
     id: 'markdown',
     label: 'Markdown',
     groups: [
-      { title: 'Syntax', fields: [{ key: 'inlineMath', label: 'Inline math ($…$)', type: 'bool' }] },
+      {
+        title: 'Syntax',
+        fields: [
+          { key: 'inlineMath', label: 'Inline math ($…$)', type: 'bool' },
+          { key: 'emoji', label: 'Emoji shortcodes (:smile:)', type: 'bool' },
+          { key: 'githubAlerts', label: 'GitHub-style alerts', type: 'bool', hint: '> [!NOTE], [!TIP], [!IMPORTANT], [!WARNING], [!CAUTION]' },
+          {
+            key: 'strictMode',
+            label: 'Strict mode',
+            type: 'bool',
+            hint: 'Off: `#Title` without a space still counts as a heading',
+          },
+          {
+            key: 'preserveLineBreaks',
+            label: 'Preserve single line breaks on export',
+            type: 'bool',
+            hint: 'The editor always shows them; this keeps them in HTML, PDF and copies',
+          },
+        ],
+      },
       {
         title: 'Code blocks',
         fields: [
@@ -964,12 +1269,31 @@ async function setPref(key, value) {
   applyRuntimeConfig();
 }
 
+const PREVIEW_KEYS = ['emoji', 'githubAlerts', 'strictMode', 'inlineMath', 'lineNumbersInCode', 'codeWrap'];
+const TREE_KEYS = ['treeSort', 'treeSortDesc', 'treeShowHidden', 'treeShowAllFiles'];
+let appliedConfig = null;
+
 function applyRuntimeConfig() {
   ctx.config.lineNumbersInCode = !!S.config.lineNumbersInCode;
   ctx.config.codeWrap = S.config.codeWrap !== false;
   ctx.config.inlineMath = S.config.inlineMath !== false;
   ctx.config.smartTypography = S.config.smartTypography !== false;
+  ctx.config.autoPairBrackets = S.config.autoPairBrackets !== false;
+  ctx.config.autoPairMarkdown = S.config.autoPairMarkdown !== false;
+  ctx.config.emojiAutocomplete = S.config.emojiAutocomplete !== false;
+  ctx.config.emoji = S.config.emoji !== false;
+  ctx.config.githubAlerts = S.config.githubAlerts !== false;
+  ctx.config.strictMode = S.config.strictMode !== false;
+  ctx.config.preserveLineBreaks = S.config.preserveLineBreaks === true;
   ctx.config.indentSize = S.config.indentSize || 4;
+  if (appliedConfig && S.view) {
+    if (PREVIEW_KEYS.some((k) => appliedConfig[k] !== S.config[k])) {
+      refreshLivePreview(S.view);
+      renderOutline();
+    }
+    if (TREE_KEYS.some((k) => appliedConfig[k] !== S.config[k])) refreshTree();
+  }
+  appliedConfig = { ...S.config };
   document.documentElement.style.setProperty('--editor-font-size', `${S.config.fontSize || 16}px`);
   document.documentElement.style.setProperty('--line-width', `${S.config.lineWidth || 760}px`);
   $('#statusbar').hidden = !S.config.showStatusBar;
@@ -1115,6 +1439,16 @@ const commands = {
     await window.ink.clipboardWrite(sel || state.doc.toString());
     flashMessage('Markdown copied');
   },
+  'edit:pastePlain': async () => {
+    const text = await window.ink.clipboardRead();
+    if (!text) return;
+    insertText(text);
+  },
+  'edit:findInFiles': () => {
+    const { state } = S.view;
+    const sel = state.sliceDoc(state.selection.main.from, state.selection.main.to);
+    openSearchPanel(sel && !sel.includes('\n') ? sel : undefined);
+  },
   'para:h1': () => setHeading(S.view, 1),
   'para:h2': () => setHeading(S.view, 2),
   'para:h3': () => setHeading(S.view, 3),
@@ -1125,6 +1459,7 @@ const commands = {
   'para:headingUp': () => stepHeading(S.view, -1),
   'para:headingDown': () => stepHeading(S.view, 1),
   'para:quote': () => toggleQuote(S.view),
+  'para:alert': (type) => insertAlert(S.view, type || 'note'),
   'para:ul': () => toggleList(S.view, '- '),
   'para:ol': () => toggleList(S.view, '1. '),
   'para:task': () => toggleTask(S.view),
@@ -1171,6 +1506,11 @@ const commands = {
   'view:outline': () => {
     document.body.classList.remove('hide-sidebar');
     switchTab('outline');
+  },
+  'view:search': () => openSearchPanel(),
+  'view:files': () => {
+    document.body.classList.remove('hide-sidebar');
+    switchTab('files');
   },
   'view:wordCount': () => {
     S.wordCountVisible = !S.wordCountVisible;
@@ -1231,6 +1571,7 @@ function switchTab(tab) {
   document.querySelectorAll('.side-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   $('#panel-files').hidden = tab !== 'files';
   $('#panel-outline').hidden = tab !== 'outline';
+  $('#panel-search').hidden = tab !== 'search';
   window.ink.setConfig({ sidebarTab: tab });
 }
 
@@ -1299,24 +1640,48 @@ function insertSnippet(snippet, pos) {
   markDirty();
 }
 
+// Replace the selection with `text`, as a paste would.
+function insertText(text) {
+  const view = S.view;
+  view.dispatch(view.state.replaceSelection(text), { userEvent: 'input.paste', scrollIntoView: true });
+  view.focus();
+}
+
 // A screenshot on the clipboard becomes an asset + an inline image, same as the file drop.
-function wirePasteImage() {
+// Rich text (a browser page, Word, Google Docs, another editor) is converted to Markdown.
+function wirePaste() {
   const host = $('#editor');
   host.addEventListener(
     'paste',
     async (e) => {
-      const items = [...((e.clipboardData && e.clipboardData.items) || [])];
+      const data = e.clipboardData;
+      const items = [...((data && data.items) || [])];
       const hasImage = items.some((it) => it.kind === 'file' && /^image\//i.test(it.type));
-      if (!hasImage) return;
-      e.preventDefault();
-      e.stopPropagation();
-      const res = await window.ink.pasteImage(S.path || null);
-      if (!res) {
-        flashMessage('Clipboard has no image');
+      if (hasImage) {
+        e.preventDefault();
+        e.stopPropagation();
+        const res = await window.ink.pasteImage(S.path || null);
+        if (!res) {
+          flashMessage('Clipboard has no image');
+          return;
+        }
+        insertSnippet(`![${res.alt}](${res.rel})`);
+        flashMessage(`Pasted to ${res.rel}`);
         return;
       }
-      insertSnippet(`![${res.alt}](${res.rel})`);
-      flashMessage(`Pasted to ${res.rel}`);
+      // smart paste: only into the Markdown text itself, not table cells or the math field
+      if (S.config.pasteHtmlAsMarkdown === false || S.sourceMode) return;
+      if (e.target.closest('.md-table-input, textarea, input, [contenteditable="true"]:not(.cm-content)')) return;
+      const html = data.getData('text/html');
+      const text = data.getData('text/plain');
+      if (!html || htmlLooksPlain(html, text)) return;
+      if (inCodeAt(S.view.state, S.view.state.selection.main.head)) return;
+      const md = htmlToMarkdown(html);
+      if (!md) return;
+      e.preventDefault();
+      e.stopPropagation();
+      insertText(md);
+      flashMessage('Pasted as Markdown · Ctrl+Shift+V pastes plain text');
     },
     true,
   );
@@ -1345,10 +1710,10 @@ function scrollToAnchor(id) {
     .toLowerCase();
   if (!want) return false;
   for (let n = 1; n <= doc.lines; n++) {
-    const m = /^(#{1,6})\s+(.*)$/.exec(doc.line(n).text);
-    if (!m) continue;
-    const explicit = /\{#([^}]+)\}\s*$/.exec(m[2]);
-    const id = explicit ? explicit[1].trim().toLowerCase() : slugify(m[2]);
+    const h = headingOf(doc.line(n).text);
+    if (!h) continue;
+    const explicit = /\{#([^}]+)\}\s*$/.exec(h.text);
+    const id = explicit ? explicit[1].trim().toLowerCase() : slugify(h.text);
     if (id === want) {
       view.dispatch({ selection: { anchor: doc.line(n).from }, scrollIntoView: true });
       view.focus();
@@ -1408,8 +1773,18 @@ function hrefAt(state, pos) {
   if (node.name === 'Autolink') return raw.replace(/^<|>$/g, '');
   const inline = /\(\s*<?([^)\s>]+)>?(?:\s+["'][^"']*["'])?\s*\)/.exec(raw);
   if (inline) return inline[1];
-  const ref = /\[([^\]]*)\]\[([^\]]*)\]/.exec(raw);
-  if (ref) return ref[2] || ref[1];
+  // reference-style: look the label up in the `[label]: url` definitions
+  const ref = /^\[((?:[^\]\\]|\\.)*)\](?:\[((?:[^\]\\]|\\.)*)\])?$/.exec(raw);
+  if (!ref) return null;
+  const label = (ref[2] || ref[1]).trim().toLowerCase().replace(/\s+/g, ' ');
+  if (!label) return null;
+  const doc = state.doc;
+  for (let n = 1; n <= doc.lines; n++) {
+    const text = doc.line(n).text;
+    if (!text.includes(']:')) continue;
+    const m = /^ {0,3}\[((?!\^)[^\]]+)\]:[ \t]*(<[^>]*>|\S+)/.exec(text);
+    if (m && m[1].trim().toLowerCase().replace(/\s+/g, ' ') === label) return m[2].replace(/^<|>$/g, '');
+  }
   return null;
 }
 
@@ -1493,10 +1868,12 @@ async function boot() {
   });
   applyRuntimeConfig();
   wireImageDrop();
-  wirePasteImage();
+  wirePaste();
   wireTree();
+  wireSearch();
   wireLinks();
   switchTab(S.config.sidebarTab || 'files');
+  window.ink.onTreeChanged(onTreeChanged);
 
   // initial document
   const initial = await window.ink.initialFile();
@@ -1592,6 +1969,14 @@ async function boot() {
     },
     copyWeChat: (dry = true) => copyForWeChat(dry),
     dropImage: (p, pos) => insertImageFromPath(p, pos),
+    html2md: (html, text) => ({ plain: htmlLooksPlain(html, text), markdown: htmlToMarkdown(html) }),
+    search: async (q, opts = {}) => {
+      Object.assign(S.search, opts);
+      $('#search-input').value = q;
+      await runSearch();
+      return S.search.results;
+    },
+    reload: () => reloadFromDisk(),
   };
 }
 

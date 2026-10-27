@@ -1,14 +1,96 @@
 // Markdown rendering used for HTML export, copy-as-HTML and inline table rendering.
 import MarkdownIt from 'markdown-it';
+import { full as emojiPlugin } from 'markdown-it-emoji';
 import katex from 'katex';
 import { highlightCode, isDiagramLang } from './syntax.js';
-import { resolveSrc } from './paths.js';
+import { ctx, resolveSrc } from './paths.js';
 
 export const mdit = new MarkdownIt({
   html: true,
   linkify: true,
   typographer: false,
   breaks: false,
+});
+
+// :smile: → 😄 (GitHub shortcodes); the live preview uses the same table (see emoji.js)
+mdit.use(emojiPlugin);
+mdit.renderer.rules.emoji = (tokens, idx) =>
+  ctx.config.emoji === false ? mdit.utils.escapeHtml(tokens[idx].markup) : tokens[idx].content;
+const emojiRule = mdit.core.ruler.__rules__.find((r) => r.name === 'emoji');
+if (emojiRule) {
+  const orig = emojiRule.fn;
+  emojiRule.fn = (state) => (ctx.config.emoji === false ? undefined : orig(state));
+}
+
+// ---------------------------------------------------------------------------
+// GitHub-style alerts: a blockquote whose first line is `[!NOTE]` / `[!TIP]` / …
+// ---------------------------------------------------------------------------
+export const ALERT_TYPES = ['note', 'tip', 'important', 'warning', 'caution'];
+const ALERT_RE = /^\[!(note|tip|important|warning|caution)\][ \t]*(?:\r?\n|$)/i;
+
+mdit.core.ruler.before('inline', 'posemark_alerts', (state) => {
+  if (ctx.config.githubAlerts === false) return;
+  const tokens = state.tokens;
+  for (let i = 0; i < tokens.length - 2; i++) {
+    if (tokens[i].type !== 'blockquote_open') continue;
+    const p = tokens[i + 1];
+    const inline = tokens[i + 2];
+    if (!p || p.type !== 'paragraph_open' || !inline || inline.type !== 'inline') continue;
+    const m = ALERT_RE.exec(inline.content);
+    if (!m) continue;
+    const type = m[1].toLowerCase();
+    const open = tokens[i];
+    open.tag = 'div';
+    open.attrJoin('class', `markdown-alert markdown-alert-${type}`);
+    for (let k = i + 1, depth = 1; k < tokens.length; k++) {
+      if (tokens[k].type === 'blockquote_open') depth++;
+      else if (tokens[k].type === 'blockquote_close' && --depth === 0) {
+        tokens[k].tag = 'div';
+        break;
+      }
+    }
+    const title = new state.Token('html_block', '', 0);
+    title.content = `<p class="markdown-alert-title">${type[0].toUpperCase()}${type.slice(1)}</p>\n`;
+    inline.content = inline.content.slice(m[0].length);
+    if (inline.content.trim()) tokens.splice(i + 1, 0, title);
+    else tokens.splice(i + 1, 3, title);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// non-strict headings: `#Title` without the space (Typora's "strict mode" off)
+// ---------------------------------------------------------------------------
+mdit.block.ruler.before('heading', 'posemark_lenient_heading', (state, startLine, _endLine, silent) => {
+  if (ctx.config.strictMode !== false) return false;
+  let pos = state.bMarks[startLine] + state.tShift[startLine];
+  const max = state.eMarks[startLine];
+  if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+  if (state.src.charCodeAt(pos) !== 0x23) return false;
+  let level = 1;
+  pos++;
+  while (level <= 6 && pos < max && state.src.charCodeAt(pos) === 0x23) {
+    level++;
+    pos++;
+  }
+  if (level > 6 || pos >= max) return false;
+  const next = state.src.charCodeAt(pos);
+  if (next === 0x20 || next === 0x09) return false; // the standard rule handles these
+  if (silent) return true;
+  let end = state.skipSpacesBack(max, pos);
+  const tmp = state.skipCharsBack(end, 0x23, pos);
+  if (tmp > pos && state.src.charCodeAt(tmp - 1) === 0x20) end = tmp;
+  state.line = startLine + 1;
+  const markup = '#'.repeat(level);
+  const open = state.push('heading_open', `h${level}`, 1);
+  open.markup = markup;
+  open.map = [startLine, state.line];
+  const inline = state.push('inline', '', 0);
+  inline.content = state.src.slice(pos, end).trim();
+  inline.map = [startLine, state.line];
+  inline.children = [];
+  const close = state.push('heading_close', `h${level}`, -1);
+  close.markup = markup;
+  return true;
 });
 
 // ---------------------------------------------------------------------------
@@ -371,6 +453,8 @@ export function renderFragment(source, env = {}) {
   const { body } = splitFrontMatter(source);
   const { body: bodyNoFoot, defs } = extractFootnotes(body);
   const scope = { ...env, footnotes: defs, fnOrder: [] };
+  // "Preserve single line breaks" — the editor always shows them, this carries them to the output
+  mdit.set({ breaks: ctx.config.preserveLineBreaks === true });
   let html = mdit.render(bodyNoFoot, scope);
   const order = scope.fnOrder || [];
   if (order.length) {

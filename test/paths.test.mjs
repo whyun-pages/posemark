@@ -38,3 +38,18 @@ test('basename', () => {
   assert.equal(basename('/x/y/z.md'), 'z.md');
   assert.equal(basename(''), '');
 });
+
+test('headingOf honours strict mode', async () => {
+  const { headingOf } = await import('../src/renderer/blocks.js');
+  const { ctx } = await import('../src/renderer/paths.js');
+  assert.deepEqual(headingOf('## Two'), { level: 2, text: 'Two', marker: '##' });
+  assert.equal(headingOf('##Tight'), null);
+  ctx.config.strictMode = false;
+  try {
+    assert.deepEqual(headingOf('##Tight'), { level: 2, text: 'Tight', marker: '##' });
+    assert.equal(headingOf('#######seven'), null);
+    assert.equal(headingOf('#'), null);
+  } finally {
+    ctx.config.strictMode = true;
+  }
+});

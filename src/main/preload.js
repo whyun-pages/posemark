@@ -20,6 +20,9 @@ contextBridge.exposeInMainWorld('ink', {
   exists: (p) => ipcRenderer.invoke('file:exists', p),
   readDir: (dir) => ipcRenderer.invoke('file:dir', dir),
   walk: (dir) => ipcRenderer.invoke('file:walk', dir),
+  stat: (p) => ipcRenderer.invoke('file:stat', p),
+  watchFolder: (dir) => ipcRenderer.invoke('folder:watch', dir),
+  searchFolder: (payload) => ipcRenderer.invoke('search:folder', payload),
   reveal: (p) => ipcRenderer.invoke('file:reveal', p),
   createFile: (dir, name) => ipcRenderer.invoke('file:create', dir, name),
   makeDir: (dir, name) => ipcRenderer.invoke('file:mkdir', dir, name),
@@ -60,4 +63,5 @@ contextBridge.exposeInMainWorld('ink', {
   rasterize: (payload) => ipcRenderer.invoke('export:rasterize', payload),
   onCommand: on('menu:command'),
   onConfig: on('config:changed'),
+  onTreeChanged: on('tree:changed'),
 });

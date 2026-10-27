@@ -14,7 +14,17 @@ export { ctx };
 const FENCE_RE = /^ {0,3}(`{3,}|~{3,})\s*(.*)$/;
 const TABLE_DELIM_RE = /^ {0,3}\|?[\s:|-]*-[\s:|-]*\|?\s*$/;
 const HEADING_RE = /^ {0,3}(#{1,6})[ \t]+(.*?)[ \t]*#*[ \t]*$/;
+// `#Title` without the space — accepted when Typora-style strict mode is off
+const LENIENT_HEADING_RE = /^ {0,3}(#{1,6})(?![#\s])(.+?)[ \t]*#*[ \t]*$/;
 const SETEXT_RE = /^ {0,3}(=+|-{2,})[ \t]*$/;
+
+/** The `{ level, text }` of an ATX heading line, honouring the strict-mode setting. */
+export function headingOf(text) {
+  let m = HEADING_RE.exec(text);
+  if (!m && ctx.config.strictMode === false) m = LENIENT_HEADING_RE.exec(text);
+  if (!m) return null;
+  return { level: m[1].length, text: m[2], marker: m[1] };
+}
 
 export function scanBlocks(doc) {
   const blocks = [];
@@ -131,11 +141,11 @@ export function scanBlocks(doc) {
     }
 
     // headings (for the outline)
-    const atx = HEADING_RE.exec(text);
+    const atx = headingOf(text);
     if (atx) {
       headings.push({
-        level: atx[1].length,
-        text: atx[2].replace(/[*_`$]/g, '').replace(/\s*\{#[^}]+\}\s*$/, '').trim(),
+        level: atx.level,
+        text: atx.text.replace(/[*_`$]/g, '').replace(/\s*\{#[^}]+\}\s*$/, '').trim(),
         line: ln,
         from: line.from,
       });

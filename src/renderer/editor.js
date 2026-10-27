@@ -16,7 +16,9 @@ import { json } from '@codemirror/lang-json';
 import { syntaxHighlighting, HighlightStyle, LanguageDescription, syntaxTree } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
+import { autocompletion } from '@codemirror/autocomplete';
 import { livePreview, focusMode, setFocusMode } from './live-preview.js';
+import { emojiCompletion } from './emoji.js';
 import { ctx } from './paths.js';
 
 const mdHighlight = HighlightStyle.define([
@@ -70,6 +72,8 @@ function inCodeAt(state, pos) {
 
 const WORD = /[\p{L}\p{N}]/u;
 
+export { inCodeAt };
+
 export const smartTypography = EditorView.inputHandler.of((view, from, to, text) => {
   if (ctx.config.smartTypography === false) return false;
   if (!text || text.length !== 1) return false;
@@ -112,6 +116,102 @@ export const smartTypography = EditorView.inputHandler.of((view, from, to, text)
   return true;
 });
 
+// ---------------------------------------------------------------------------
+// auto pair: brackets/quotes like a code editor, plus the Markdown markers Typora pairs
+// (`*`, `_`, `` ` ``, `$`). `~`, `=` and `^` only wrap a selection, they never auto-close.
+// ---------------------------------------------------------------------------
+const BRACKETS = { '(': ')', '[': ']', '{': '}', '"': '"', "'": "'" };
+const MD_PAIRS = { '*': '*', _: '_', '`': '`', '~': '~', '=': '=', $: '$', '^': '^' };
+const WRAP_ONLY = new Set(['~', '=', '^']);
+const CLOSERS = new Set(Object.values(BRACKETS));
+// characters a pair may be typed in front of without looking like it splits a word
+const AFTER_OK = /[\s)\]}>.,;:!?'"、。，：；！？）》」]/;
+
+function pairFor(text) {
+  if (text in BRACKETS) return ctx.config.autoPairBrackets === false ? null : BRACKETS[text];
+  if (text in MD_PAIRS) return ctx.config.autoPairMarkdown === false ? null : MD_PAIRS[text];
+  return null;
+}
+
+export const autoPair = EditorView.inputHandler.of((view, from, to, text) => {
+  if (!text || text.length !== 1) return false;
+  const { state } = view;
+  const doc = state.doc;
+  const close = pairFor(text);
+
+  // typing a closing bracket right before the same bracket: step over it
+  if (close === null) {
+    if (CLOSERS.has(text) && ctx.config.autoPairBrackets !== false && from === to && doc.sliceString(to, to + 1) === text) {
+      view.dispatch({ selection: { anchor: to + 1 }, userEvent: 'input.type', scrollIntoView: true });
+      return true;
+    }
+    return false;
+  }
+
+  // a selection gets wrapped, `**` around a word for example
+  if (state.selection.ranges.some((r) => !r.empty)) {
+    view.dispatch(
+      state.changeByRange((r) => ({
+        changes: [
+          { from: r.from, insert: text },
+          { from: r.to, insert: close },
+        ],
+        range: EditorSelection.range(r.from + 1, r.to + 1),
+      })),
+      { userEvent: 'input.type', scrollIntoView: true },
+    );
+    return true;
+  }
+  if (from !== to) return false;
+
+  const prev = from > 0 ? doc.sliceString(from - 1, from) : '';
+  const next = doc.sliceString(to, to + 1);
+  const isMd = text in MD_PAIRS;
+
+  if (isMd) {
+    if (WRAP_ONLY.has(text)) return false;
+    if (inCodeAt(state, from)) return false;
+    if (text === '$' && ctx.config.inlineMath === false) return false;
+    // `*|*` + `*` -> `**|**` (second marker of a bold pair)
+    if (prev === text && next === text) {
+      view.dispatch({ changes: { from, insert: text + text }, selection: { anchor: from + 1 }, userEvent: 'input.type' });
+      return true;
+    }
+  } else if (text === '"' || text === "'") {
+    if (ctx.config.smartTypography !== false) return false; // curly quotes take over
+    if (WORD.test(prev)) return false;
+  }
+  // the closer is already there: step over it
+  if (close === text && next === text) {
+    view.dispatch({ selection: { anchor: to + 1 }, userEvent: 'input.type', scrollIntoView: true });
+    return true;
+  }
+  if (isMd && WORD.test(prev)) return false;
+  if (next && !AFTER_OK.test(next)) return false;
+
+  view.dispatch({
+    changes: { from, to, insert: text + close },
+    selection: { anchor: from + 1 },
+    userEvent: 'input.type',
+    scrollIntoView: true,
+  });
+  return true;
+});
+
+// Backspace between an empty pair removes both halves.
+function deleteEmptyPair(view) {
+  const { state } = view;
+  const r = state.selection.main;
+  if (!r.empty || r.from === 0) return false;
+  const prev = state.doc.sliceString(r.from - 1, r.from);
+  const close = pairFor(prev);
+  if (close === null || state.doc.sliceString(r.from, r.from + 1) !== close) return false;
+  view.dispatch({ changes: { from: r.from - 1, to: r.from + 1 }, userEvent: 'delete.backward' });
+  return true;
+}
+
+export const autoPairKeymap = keymap.of([{ key: 'Backspace', run: deleteEmptyPair }]);
+
 export function createEditor({ parent, doc = '', onChange, onCursor, onScroll }) {
   const state = EditorState.create({
     doc,
@@ -124,7 +224,10 @@ export function createEditor({ parent, doc = '', onChange, onCursor, onScroll })
       markdown({ base: markdownLanguage, addKeymap: true, codeLanguages: CODE_LANGS }),
       syntaxHighlighting(mdHighlight),
       search({ top: true }),
+      autoPairKeymap,
       keymap.of([...searchKeymap, ...historyKeymap, ...defaultKeymap, indentWithTab]),
+      autocompletion({ override: [emojiCompletion(inCodeAt)], icons: false, activateOnTyping: true, maxRenderedOptions: 40 }),
+      autoPair,
       smartTypography,
       tabSize.of(EditorState.tabSize.of(4)),
       spellcheckAttr.of(EditorView.contentAttributes.of({ spellcheck: 'true' })),
@@ -248,6 +351,29 @@ export function toggleQuote(view) {
     if (m) return m[1] + text.slice(m[0].length);
     return `> ${text}`;
   });
+}
+
+// GitHub-style alert: the selected lines become a quote headed by `[!NOTE]` (or tip/important/…).
+export function insertAlert(view, type = 'note') {
+  const kind = String(type || 'note').toUpperCase();
+  const { state } = view;
+  const range = state.selection.main;
+  const first = state.doc.lineAt(range.from);
+  const last = state.doc.lineAt(range.to);
+  const lines = [];
+  for (let n = first.number; n <= last.number; n++) {
+    const text = state.doc.line(n).text.replace(/^\s*>\s?/, '');
+    if (/^\s*\[![a-z]+\]\s*$/i.test(text)) continue; // already an alert heading
+    lines.push(text);
+  }
+  const body = lines.length && lines.some((l) => l.trim()) ? lines.map((l) => `> ${l}`.replace(/\s+$/, '')).join('\n') : '> ';
+  const insert = `> [!${kind}]\n${body}`;
+  view.dispatch({
+    changes: { from: first.from, to: last.to, insert },
+    selection: { anchor: first.from + insert.length },
+    userEvent: 'input.format',
+  });
+  view.focus();
 }
 
 export function toggleList(view, marker) {

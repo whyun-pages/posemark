@@ -390,26 +390,51 @@ async function readTextFile(p) {
   return { path: p, content, mtime: st.mtimeMs };
 }
 
+const isMarkdownName = (name) => MD_EXT.includes(path.extname(name).slice(1).toLowerCase());
+const hiddenName = (name) => name.startsWith('.') || name === 'node_modules';
+
+// Sidebar listing: sort order, hidden files and non-Markdown files follow the preferences.
 async function dirEntries(dir) {
   const items = await fsp.readdir(dir, { withFileTypes: true });
+  const showHidden = !!cfg('treeShowHidden');
+  const allFiles = !!cfg('treeShowAllFiles');
+  const sort = cfg('treeSort') || 'natural';
+  const needStat = sort === 'mtime' || sort === 'ctime';
   const out = [];
   for (const it of items) {
-    if (it.name.startsWith('.')) continue;
-    if (it.name === 'node_modules') continue;
+    if (!showHidden && hiddenName(it.name)) continue;
     const full = path.join(dir, it.name);
-    if (it.isDirectory()) out.push({ name: it.name, path: full, dir: true });
-    else {
-      const ext = path.extname(it.name).slice(1).toLowerCase();
-      if (MD_EXT.includes(ext)) out.push({ name: it.name, path: full, dir: false });
+    const isDir = it.isDirectory();
+    if (!isDir && !allFiles && !isMarkdownName(it.name)) continue;
+    const entry = { name: it.name, path: full, dir: isDir, markdown: isDir || isMarkdownName(it.name) };
+    if (needStat) {
+      try {
+        const st = await fsp.stat(full);
+        entry.mtime = st.mtimeMs;
+        entry.ctime = st.birthtimeMs || st.ctimeMs;
+      } catch {
+        entry.mtime = entry.ctime = 0;
+      }
     }
+    out.push(entry);
   }
-  out.sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name, 'zh') : a.dir ? -1 : 1));
+  const byName = (a, b) => a.name.localeCompare(b.name, 'zh', sort === 'natural' ? { numeric: true, sensitivity: 'base' } : undefined);
+  const desc = cfg('treeSortDesc') ? -1 : 1;
+  out.sort((a, b) => {
+    if (a.dir !== b.dir) return a.dir ? -1 : 1; // folders first, always
+    if (sort === 'mtime' || sort === 'ctime') {
+      const d = (a[sort] || 0) - (b[sort] || 0);
+      if (d) return desc * (d > 0 ? 1 : -1);
+    }
+    return desc * byName(a, b);
+  });
   return out;
 }
 
 async function walkMarkdown(dir, limit = 4000) {
   const out = [];
   const stack = [dir];
+  const showHidden = !!cfg('treeShowHidden');
   while (stack.length && out.length < limit) {
     const cur = stack.pop();
     let items = [];
@@ -419,10 +444,123 @@ async function walkMarkdown(dir, limit = 4000) {
       continue;
     }
     for (const it of items) {
-      if (it.name.startsWith('.') || it.name === 'node_modules') continue;
+      if (!showHidden && hiddenName(it.name)) continue;
+      if (it.name === 'node_modules' || it.name === '.git') continue;
       const full = path.join(cur, it.name);
       if (it.isDirectory()) stack.push(full);
-      else if (MD_EXT.includes(path.extname(it.name).slice(1).toLowerCase())) out.push(full);
+      else if (isMarkdownName(it.name)) out.push(full);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// folder watcher: the sidebar follows changes made outside the app
+// ---------------------------------------------------------------------------
+let watcher = null;
+let watchTimer = null;
+let watchQueue = new Set();
+
+function stopWatch() {
+  if (watcher) {
+    try {
+      watcher.close();
+    } catch {
+      /* already closed */
+    }
+  }
+  watcher = null;
+  clearTimeout(watchTimer);
+  watchQueue = new Set();
+}
+
+function startWatch(dir) {
+  stopWatch();
+  if (!dir || !fs.existsSync(dir)) return false;
+  const onChange = (_event, filename) => {
+    if (filename) {
+      const name = String(filename);
+      // our own temp files and VCS churn are not interesting
+      if (/(^|[\\/])\.git([\\/]|$)/.test(name) || /\.(tmp|swp)$/i.test(name) || /~$/.test(name)) return;
+      watchQueue.add(path.join(dir, name));
+    } else watchQueue.add(dir);
+    clearTimeout(watchTimer);
+    watchTimer = setTimeout(() => {
+      const paths = [...watchQueue];
+      watchQueue = new Set();
+      if (mainWindow) mainWindow.webContents.send('tree:changed', { dir, paths });
+    }, 350);
+  };
+  try {
+    watcher = fs.watch(dir, { recursive: true, persistent: false }, onChange);
+  } catch {
+    try {
+      watcher = fs.watch(dir, { persistent: false }, onChange);
+    } catch {
+      watcher = null;
+      return false;
+    }
+  }
+  watcher.on('error', () => stopWatch());
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// search across the folder (Ctrl+Shift+F)
+// ---------------------------------------------------------------------------
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+async function searchFolder({ dir, query, caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
+  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null };
+  if (!dir || !query) return out;
+  let source = regex ? query : escapeRegExp(query);
+  if (wholeWord) source = `(?<![\\p{L}\\p{N}_])(?:${source})(?![\\p{L}\\p{N}_])`;
+  let re;
+  try {
+    re = new RegExp(source, `gu${caseSensitive ? '' : 'i'}`);
+  } catch (err) {
+    out.error = err.message;
+    return out;
+  }
+  const files = await walkMarkdown(dir, 20000);
+  for (const file of files) {
+    if (out.results.length >= maxResults) {
+      out.truncated = true;
+      break;
+    }
+    let text;
+    try {
+      const st = await fsp.stat(file);
+      if (st.size > 8 * 1024 * 1024) continue;
+      text = await fsp.readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    out.scanned++;
+    if (!re.test(text)) continue;
+    out.files++;
+    const lines = text.split(/\r?\n/);
+    for (let i = 0; i < lines.length && out.results.length < maxResults; i++) {
+      const line = lines[i];
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(line))) {
+        if (m[0] === '') {
+          re.lastIndex++;
+          continue;
+        }
+        const from = Math.max(0, m.index - 40);
+        out.results.push({
+          path: file,
+          line: i + 1,
+          col: m.index,
+          len: m[0].length,
+          before: (from > 0 ? '…' : '') + line.slice(from, m.index),
+          match: m[0],
+          after: line.slice(m.index + m[0].length, m.index + m[0].length + 80),
+        });
+        if (out.results.length >= maxResults) break;
+      }
     }
   }
   return out;
@@ -564,8 +702,19 @@ function registerIpc() {
     const st = await fsp.stat(p);
     return st.mtimeMs;
   });
-  ipcMain.handle('file:exists', (_e, p) => fs.existsSync(p));  ipcMain.handle('file:dir', (_e, dir) => dirEntries(dir));
+  ipcMain.handle('file:exists', (_e, p) => fs.existsSync(p));
+  ipcMain.handle('file:dir', (_e, dir) => dirEntries(dir));
   ipcMain.handle('file:walk', (_e, dir) => walkMarkdown(dir));
+  ipcMain.handle('file:stat', async (_e, p) => {
+    try {
+      const st = await fsp.stat(p);
+      return { mtime: st.mtimeMs, size: st.size, dir: st.isDirectory() };
+    } catch {
+      return null;
+    }
+  });
+  ipcMain.handle('folder:watch', (_e, dir) => (dir ? startWatch(dir) : (stopWatch(), false)));
+  ipcMain.handle('search:folder', (_e, payload) => searchFolder(payload || {}));
   ipcMain.handle('file:reveal', (_e, p) => shell.showItemInFolder(p));
   ipcMain.handle('file:create', async (_e, dir, name) => {
     const full = path.join(dir, name);
@@ -856,6 +1005,7 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.on('window-all-closed', () => {
+    stopWatch();
     store?.save();
     if (process.platform !== 'darwin') app.quit();
   });
