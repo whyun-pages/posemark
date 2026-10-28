@@ -147,7 +147,9 @@ Right-click anything in the file tree for new file / new folder / rename / trash
   while dragging to unlock the ratio — that writes `![alt|320x140](pic.png)` (both attributes land in
   the exported `<img>`). Double-click the image to jump into its `![]()` source instead.
 - YAML front matter kept visible but visually de-emphasised
-- Source code mode (`Ctrl+/`) shows the raw Markdown with no decorations
+- Source code mode (`Ctrl+/`) shows the raw Markdown in a monospace font with syntax highlighting:
+  headings sized by level, code fences and front matter shaded, quotes with their bar, inline code,
+  links, task markers and all the markers greyed
 - **Links work**: clicking a rendered link (or `Ctrl`+click on one in the source) opens `http(s)`/`mailto`
   in the system browser, a relative `.md` in the editor (jumping to `#anchor` if there is one), any
   other relative file in its default app, and `#foo` scrolls to that heading

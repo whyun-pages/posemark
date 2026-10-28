@@ -539,3 +539,27 @@ body.theme-dark .md-alert-caution { --alert: #f85149; }
 .cm-editor .cm-completionLabel { font-family: var(--mono); font-size: 12px; }
 .cm-editor .cm-completionDetail { margin-left: auto; font-style: normal; font-size: 15px; }
 .cm-editor .cm-completionMatchedText { text-decoration: none; color: var(--accent); font-weight: 650; }
+
+/* ------------------------------------------------------------------ source code mode */
+/* Markdown shown as code (Ctrl+/): monospace, markers kept, blocks still read as blocks. */
+.cm-editor.cm-source .cm-scroller,
+.cm-editor.cm-source .cm-content { font-family: var(--mono); font-size: .92em; line-height: 1.75; }
+.cm-editor.cm-source .cm-line { padding: 0 6px; }
+.cm-source .cm-src-h { font-weight: 700; }
+.cm-source .cm-src-h1 { font-size: 1.45em; }
+.cm-source .cm-src-h2 { font-size: 1.25em; }
+.cm-source .cm-src-h3 { font-size: 1.1em; }
+.cm-source .cm-src-h4, .cm-source .cm-src-h5, .cm-source .cm-src-h6 { color: var(--fg-soft, var(--fg)); }
+.cm-source .cm-src-fence { background: var(--code-block-bg); }
+.cm-source .cm-src-quote { color: var(--fg-muted); box-shadow: inset 3px 0 0 var(--quote-bar); padding-left: 12px; }
+.cm-source .cm-src-html { color: var(--hl-builtin); }
+.cm-source .cm-src-meta { color: var(--fg-muted); background: var(--code-block-bg); }
+.cm-source .cm-src-table { font-variant-numeric: tabular-nums; }
+.cm-source .cm-src-code { background: var(--code-inline-bg); color: var(--code-inline-fg); border-radius: 3px; padding: 0 1px; }
+.cm-source .cm-src-fence .cm-src-code { background: none; color: inherit; padding: 0; }
+.cm-source .cm-src-label { color: var(--hl-meta); }
+.cm-source .cm-src-title { color: var(--hl-string); }
+.cm-source .cm-src-th { font-weight: 650; }
+.cm-source .cm-src-atom { color: var(--accent); font-weight: 600; }
+.cm-source .cm-src-escape { color: var(--hl-number); }
+.cm-source .cm-src-comment { color: var(--hl-comment); font-style: italic; }

@@ -2,12 +2,15 @@
 import { EditorState, Compartment, EditorSelection } from '@codemirror/state';
 import {
   EditorView,
+  ViewPlugin,
+  Decoration,
   keymap,
   drawSelection,
   dropCursor,
   highlightActiveLineGutter,
   placeholder,
 } from '@codemirror/view';
+import { RangeSetBuilder } from '@codemirror/state';
 import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown';
 import { javascript } from '@codemirror/lang-javascript';
@@ -26,10 +29,10 @@ const mdHighlight = HighlightStyle.define([
   { tag: tags.emphasis, fontStyle: 'italic' },
   { tag: tags.strikethrough, textDecoration: 'line-through' },
   { tag: tags.link, color: 'var(--link)' },
-  { tag: tags.url, color: 'var(--muted)' },
+  { tag: tags.url, color: 'var(--fg-muted)' },
   { tag: tags.monospace, fontFamily: 'var(--mono)' },
-  { tag: tags.processingInstruction, color: 'var(--muted)' },
-  { tag: tags.contentSeparator, color: 'var(--muted)' },
+  { tag: tags.processingInstruction, color: 'var(--fg-muted)' },
+  { tag: tags.contentSeparator, color: 'var(--fg-muted)' },
   // fenced-code content while the caret is inside the block (codeLanguages below)
   { tag: [tags.keyword, tags.operatorKeyword, tags.modifier], color: 'var(--hl-keyword)' },
   { tag: [tags.string, tags.special(tags.string), tags.regexp], color: 'var(--hl-string)' },
@@ -50,6 +53,92 @@ const CODE_LANGS = [
   LanguageDescription.of({ name: 'python', alias: ['py'], support: python() }),
   LanguageDescription.of({ name: 'json', alias: ['jsonc', 'json5'], support: json() }),
 ];
+
+// ---------------------------------------------------------------------------
+// source code mode highlighting: inline tokens get classes (styled in editor.css under
+// `.cm-source`), and a view plugin marks whole lines for headings, fenced code, quotes
+// and HTML blocks so a block reads as a block even with every marker visible.
+// ---------------------------------------------------------------------------
+const srcHighlight = HighlightStyle.define([
+  { tag: tags.monospace, class: 'cm-src-code' },
+  { tag: tags.labelName, class: 'cm-src-label' },
+  { tag: tags.heading, class: 'cm-src-th' },
+  { tag: tags.atom, class: 'cm-src-atom' },
+  { tag: tags.escape, class: 'cm-src-escape' },
+  { tag: tags.character, class: 'cm-src-escape' },
+  { tag: tags.string, class: 'cm-src-title' },
+  { tag: [tags.comment, tags.blockComment], class: 'cm-src-comment' },
+]);
+
+const LINE_CLASS = {
+  ATXHeading1: 'cm-src-h cm-src-h1',
+  ATXHeading2: 'cm-src-h cm-src-h2',
+  ATXHeading3: 'cm-src-h cm-src-h3',
+  ATXHeading4: 'cm-src-h cm-src-h4',
+  ATXHeading5: 'cm-src-h cm-src-h5',
+  ATXHeading6: 'cm-src-h cm-src-h6',
+  SetextHeading1: 'cm-src-h cm-src-h1',
+  SetextHeading2: 'cm-src-h cm-src-h2',
+  FencedCode: 'cm-src-fence',
+  CodeBlock: 'cm-src-fence',
+  Blockquote: 'cm-src-quote',
+  HTMLBlock: 'cm-src-html',
+  Table: 'cm-src-table',
+};
+
+const sourceLines = ViewPlugin.fromClass(
+  class {
+    constructor(view) {
+      this.decorations = this.build(view);
+    }
+
+    update(u) {
+      if (u.docChanged || u.viewportChanged || syntaxTree(u.startState) !== syntaxTree(u.state)) this.decorations = this.build(u.view);
+    }
+
+    build(view) {
+      const { state } = view;
+      const lines = new Map(); // line start -> class list
+      // YAML front matter is not Markdown: the parser would read `title: x` + `---` as a
+      // setext heading, so those lines get their own class and no block classes.
+      let metaEnd = 0;
+      if (state.doc.lines > 1 && /^---\s*$/.test(state.doc.line(1).text)) {
+        for (let n = 2; n <= Math.min(state.doc.lines, 60); n++) {
+          if (/^(---|\.\.\.)\s*$/.test(state.doc.line(n).text)) {
+            metaEnd = state.doc.line(n).to;
+            for (let k = 1; k <= n; k++) lines.set(state.doc.line(k).from, 'cm-src-meta');
+            break;
+          }
+        }
+      }
+      for (const { from, to } of view.visibleRanges) {
+        syntaxTree(state).iterate({
+          from,
+          to,
+          enter: (node) => {
+            const cls = LINE_CLASS[node.name];
+            if (!cls || node.from < metaEnd) return;
+            const first = state.doc.lineAt(node.from).number;
+            const last = state.doc.lineAt(Math.max(node.from, node.to - 1)).number;
+            for (let n = first; n <= last; n++) {
+              const line = state.doc.line(n);
+              if (line.to < from || line.from > to) continue;
+              const prev = lines.get(line.from);
+              if (!prev) lines.set(line.from, cls);
+              else if (!prev.includes(cls)) lines.set(line.from, `${prev} ${cls}`);
+            }
+          },
+        });
+      }
+      const builder = new RangeSetBuilder();
+      for (const pos of [...lines.keys()].sort((a, b) => a - b)) builder.add(pos, pos, Decoration.line({ class: lines.get(pos) }));
+      return builder.finish();
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
+
+const sourceHighlighting = [sourceLines, syntaxHighlighting(srcHighlight)];
 
 const tabSize = new Compartment();
 const spellcheckAttr = new Compartment();
@@ -481,7 +570,8 @@ export function clearStyle(view) {
 export const markCompartment = tabSize;
 
 export function setSourceMode(view, on) {
-  view.dispatch({ effects: sourceMode.reconfigure(on ? [] : livePreview) });
+  view.dom.classList.toggle('cm-source', !!on);
+  view.dispatch({ effects: sourceMode.reconfigure(on ? sourceHighlighting : livePreview) });
 }
 
 export function setSpellcheck(view, on) {
