@@ -315,6 +315,21 @@ mdit.renderer.rules.heading_open = (tokens, idx) => {
   return `<${token.tag}${mdit.renderer.renderAttrs(token)}>`;
 };
 
+// Raw HTML (`<img src="a.png" width="320">`, `<video src="clip.mp4">`) keeps its attributes but
+// the relative source has to be resolved like a Markdown image's.
+const SRC_TAG_RE = /(<(?:img|video|audio|source)\b[^>]*?\ssrc\s*=\s*)("([^"]*)"|'([^']*)')/gi;
+function resolveHtmlSources(html, env) {
+  return html.replace(SRC_TAG_RE, (m, head, quoted, dq, sq) => {
+    const src = dq ?? sq ?? '';
+    const q = quoted[0];
+    return `${head}${q}${resolveSrc(src, env && env.docPath)}${q}`;
+  });
+}
+for (const kind of ['html_inline', 'html_block']) {
+  const base = mdit.renderer.rules[kind] || ((tokens, idx) => tokens[idx].content);
+  mdit.renderer.rules[kind] = (tokens, idx, options, env, self) => resolveHtmlSources(base(tokens, idx, options, env, self), env);
+}
+
 const defaultImage = mdit.renderer.rules.image || ((tokens, idx, options, env, self) => self.renderToken(tokens, idx, options));
 mdit.renderer.rules.image = (tokens, idx, options, env, self) => {
   const token = tokens[idx];

@@ -58,6 +58,16 @@ const DEFAULTS = {
   wechatFirstLineIndent: false,
   wechatCodeLang: true,
   wechatLinkRefs: true,
+  // images: 'copy' into the image folder / 'keep' the original path / 'upload' right away
+  imageInsert: 'copy',
+  imageFolder: 'assets', // relative to the document; `${filename}` = document name without extension
+  imageUseRelativePath: true,
+  imageDotSlash: false,
+  imageUrlEscape: true,
+  imageUploader: 'none', // 'picgo-core' | 'piclist' | 'custom'
+  imagePicgoPath: 'picgo',
+  imagePiclistUrl: 'http://127.0.0.1:36677',
+  imageUploadCommand: '',
   recentFiles: [],
   recentFolders: [],
   pinnedFolders: [],

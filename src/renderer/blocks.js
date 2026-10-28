@@ -5,7 +5,7 @@ import katex from 'katex';
 import mermaid from 'mermaid';
 import { mdit } from './markdown.js';
 import { highlightCode, isDiagramLang } from './syntax.js';
-import { ctx, resolveSrc } from './paths.js';
+import { ctx, resolveSrc, parseImageTag } from './paths.js';
 
 export { highlightCode, isDiagramLang };
 export { ctx };
@@ -1023,20 +1023,20 @@ export class ImageLivePreviewWidget extends WidgetType {
     for (const item of this.images) {
       const fig = document.createElement('figure');
       const img = document.createElement('img');
-      const size = /^(.*?)\|\s*(\d+)(?:\s*x\s*(\d+))?\s*$/.exec(item.alt || '');
-      const label = size ? size[1] : item.alt || '';
-      img.src = resolveSrc(item.src);
-      img.alt = label;
-      if (size) img.style.width = size[2] + 'px';
-      if (item.title) img.title = item.title;
+      const spec = imageSpec(item);
+      img.src = resolveSrc(spec.src);
+      img.alt = spec.label;
+      applyImageSize(img, spec);
+      if (spec.title) img.title = spec.title;
       img.addEventListener('error', () => {
         fig.classList.add('error');
-        fig.textContent = `missing: ${item.src}`;
+        fig.textContent = `missing: ${spec.src}`;
       });
       fig.appendChild(img);
-      if (label) {
+      const sizeNote = spec.width ? ` · ${spec.width}px` : spec.zoom ? ` · zoom ${spec.zoom}` : '';
+      if (spec.label || sizeNote) {
         const cap = document.createElement('figcaption');
-        cap.textContent = label + (size ? ` · ${size[2]}px` : '');
+        cap.textContent = spec.label + sizeNote;
         fig.appendChild(cap);
       }
       body.appendChild(fig);
@@ -1097,38 +1097,73 @@ export class DiagramWidget extends WidgetType {
   }
 }
 
+// One description for both image syntaxes:
+//   ![alt|240x160](pic.png "title")      kind 'md'   (size written by the resize handle)
+//   <img src="pic.png" width="240" style="zoom:50%">   kind 'html' (Typora's other form)
+export function imageSpec(item) {
+  if (item.kind === 'html') {
+    const t = parseImageTag(item.raw) || {};
+    return {
+      kind: 'html',
+      raw: item.raw,
+      src: t.src || '',
+      label: t.alt || '',
+      title: t.title || '',
+      width: t.width || 0,
+      height: t.height || 0,
+      zoom: t.zoom || '',
+    };
+  }
+  const size = /^(.*?)\|\s*(\d+)(?:\s*x\s*(\d+))?\s*$/.exec(item.alt || '');
+  return {
+    kind: 'md',
+    raw: item.raw || '',
+    src: item.src || '',
+    label: size ? size[1] : item.alt || '',
+    title: item.title || '',
+    width: size ? Number(size[2]) : 0,
+    height: size && size[3] ? Number(size[3]) : 0,
+    zoom: '',
+  };
+}
+
+function applyImageSize(img, spec) {
+  if (spec.width) img.style.width = spec.width + 'px';
+  if (spec.height) img.style.height = spec.height + 'px';
+  if (!spec.width && !spec.height && spec.zoom) img.style.zoom = spec.zoom;
+}
+
 export class ImageWidget extends WidgetType {
-  constructor(src, alt, title, block) {
+  constructor(item, block) {
     super();
-    this.src = src;
-    this.alt = alt;
-    this.title = title;
+    const spec = imageSpec(item);
+    this.spec = spec;
+    this.src = spec.src;
+    this.label = spec.label;
+    this.title = spec.title;
+    this.width = spec.width;
+    this.height = spec.height;
     this.block = block;
-    // `alt|240` or `alt|240x160` — the size written by the resize handle
-    const size = /^(.*?)\|\s*(\d+)(?:\s*x\s*(\d+))?\s*$/.exec(alt || '');
-    this.label = size ? size[1] : alt || '';
-    this.width = size ? Number(size[2]) : 0;
-    this.height = size && size[3] ? Number(size[3]) : 0;
+    // the resolved URL is part of the identity: a changed typora-root-url re-renders
+    this.resolved = resolveSrc(spec.src);
   }
 
   eq(other) {
-    return (
-      other.src === this.src &&
-      other.alt === this.alt &&
-      other.title === this.title &&
-      other.block.from === this.block.from
-    );
+    return other.spec.raw === this.spec.raw && other.resolved === this.resolved && other.block.from === this.block.from;
   }
 
   toDOM(view) {
     const span = document.createElement('span');
     span.className = 'md-inline-image';
+    span.dataset.src = this.src;
+    span.dataset.from = String(this.block.from);
+    span.dataset.to = String(this.block.to);
+    span.dataset.kind = this.spec.kind;
     const img = document.createElement('img');
-    img.src = resolveSrc(this.src);
+    img.src = this.resolved;
     img.alt = this.label;
     if (this.title) img.title = this.title;
-    if (this.width) img.style.width = this.width + 'px';
-    if (this.height) img.style.height = this.height + 'px';
+    applyImageSize(img, this.spec);
     img.draggable = false;
     img.addEventListener('error', () => {
       span.classList.add('error');
@@ -1157,18 +1192,88 @@ export class ImageWidget extends WidgetType {
 }
 
 /** Rewrite `![alt](src)` → `![alt|width](src)` (or drop the width when 0).
- *  With an explicit height it becomes `![alt|widthxheight](src)`. */
-function writeImageWidth(view, from, to, width, height) {
+ *  With an explicit height it becomes `![alt|widthxheight](src)`.
+ *  An `<img>` tag gets `width="…"` / `height="…"` attributes instead (any zoom is dropped). */
+export function writeImageWidth(view, from, to, width, height) {
   const max = view.state.doc.length;
   const end = Math.min(to, max);
   const raw = view.state.doc.sliceString(from, end);
-  const m = /^!\[([^\]]*)\]\(\s*(<[^>]*>|[^)\s]+)?\s*(?:"([^"]*)")?\s*\)$/.exec(raw);
-  if (!m) return;
-  const bare = m[1].replace(/\|\s*\d+(?:\s*x\s*\d+)?\s*$/, '');
-  const size = width > 0 ? `|${width}${height > 0 ? `x${height}` : ''}` : '';
-  const next = `![${bare}${size}](${m[2] || ''}${m[3] ? ` "${m[3]}"` : ''})`;
-  if (next === raw) return;
+  const next = resizedImageSource(raw, width, height);
+  if (next == null || next === raw) return;
   view.dispatch({ changes: { from, to: end, insert: next } });
+}
+
+export function resizedImageSource(raw, width, height) {
+  const m = /^!\[([^\]]*)\]\(\s*(<[^>]*>|[^)\s]+)?\s*(?:"([^"]*)")?\s*\)$/.exec(raw);
+  if (m) {
+    const bare = m[1].replace(/\|\s*\d+(?:\s*x\s*\d+)?\s*$/, '');
+    const size = width > 0 ? `|${width}${height > 0 ? `x${height}` : ''}` : '';
+    return `![${bare}${size}](${m[2] || ''}${m[3] ? ` "${m[3]}"` : ''})`;
+  }
+  const tag = /^(\s*<img\b)([^>]*?)(\/?>\s*)$/i.exec(raw);
+  if (!tag) return null;
+  let attrs = tag[2]
+    .replace(/\s+(width|height)\s*=\s*("[^"]*"|'[^']*'|[^\s"'>]+)/gi, '')
+    .replace(/\s+style\s*=\s*"([^"]*)"/i, (all, style) => {
+      const kept = style
+        .split(';')
+        .map((s) => s.trim())
+        .filter((s) => s && !/^(zoom|width|height)\s*:/i.test(s))
+        .join('; ');
+      return kept ? ` style="${kept}"` : '';
+    });
+  if (width > 0) attrs += ` width="${width}"`;
+  if (height > 0) attrs += ` height="${height}"`;
+  return `${tag[1]}${attrs}${tag[3]}`;
+}
+
+/** Rewrite the source path of an image (either syntax), keeping everything else. */
+export function retargetedImageSource(raw, newSrc) {
+  const m = /^(!\[[^\]]*\]\(\s*)(<[^>]*>|[^)\s]+)?(\s*(?:"[^"]*")?\s*\))$/.exec(raw);
+  if (m) return `${m[1]}${newSrc}${m[3]}`;
+  const tag = /^(\s*<(?:img|video|audio)\b[^>]*?\ssrc\s*=\s*)("[^"]*"|'[^']*')([^>]*>)/i.exec(raw);
+  if (tag) return raw.replace(tag[0], `${tag[1]}"${newSrc}"${tag[3]}`);
+  return null;
+}
+
+/** `<video controls src="clip.mp4"></video>` rendered in place; double-click edits the source. */
+export class VideoWidget extends WidgetType {
+  constructor(raw, block) {
+    super();
+    this.raw = raw;
+    this.block = block;
+    this.spec = parseImageTag(raw) || { src: '', tag: 'video', attrs: {} };
+    this.resolved = resolveSrc(this.spec.src);
+  }
+
+  eq(other) {
+    return other.raw === this.raw && other.resolved === this.resolved && other.block.from === this.block.from;
+  }
+
+  toDOM(view) {
+    const wrap = document.createElement('div');
+    wrap.className = 'md-block md-video';
+    const media = document.createElement(this.spec.tag === 'audio' ? 'audio' : 'video');
+    media.controls = true;
+    media.preload = 'metadata';
+    media.src = resolveSrc(this.spec.src);
+    if (this.spec.width) media.style.width = this.spec.width + 'px';
+    if (this.spec.attrs.poster) media.poster = resolveSrc(this.spec.attrs.poster);
+    media.addEventListener('error', () => {
+      wrap.classList.add('error');
+      wrap.textContent = `missing: ${this.spec.src}`;
+    });
+    wrap.appendChild(media);
+    wrap.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      cursorInto(view, this.block.from);
+    });
+    return wrap;
+  }
+
+  ignoreEvent(e) {
+    return e.type !== 'dblclick';
+  }
 }
 
 let activeFrame = null;

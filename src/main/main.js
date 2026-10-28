@@ -1,5 +1,5 @@
 'use strict';
-const { app, BrowserWindow, Menu, ipcMain, dialog, shell, clipboard, nativeTheme, screen } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog, shell, clipboard, nativeTheme, nativeImage, net, screen } = require('electron');
 const fs = require('fs');
 const fsp = require('fs/promises');
 const os = require('os');
@@ -10,6 +10,7 @@ const BUILTIN_THEMES = require('./themes');
 const { buildMenu } = require('./menu');
 const { Drafts, draftId } = require('./drafts');
 const { UserThemes } = require('./user-themes');
+const images = require('./images');
 
 const MD_EXT = ['md', 'markdown', 'mmd', 'mdown', 'mkd', 'mdwn', 'mdtxt', 'mdtext', 'txt', 'text', 'rmd'];
 const isDev = !!process.env.POSEMARK_DEV;
@@ -87,6 +88,7 @@ function createWindow(initial = {}) {
     state: { path: null, title: 'Untitled', dirty: false },
     initial: { ...initial, first: firstWindow },
     watcher: null,
+    docWatcher: null,
     watchTimer: null,
     watchQueue: new Set(),
     allowClose: false,
@@ -131,6 +133,8 @@ function createWindow(initial = {}) {
 
   // Keep native Chrome context menu only where it makes sense; suppress the rest.
   win.webContents.on('context-menu', (_e, params) => {
+    // rendered images get the editor's own menu (zoom, move, upload, delete…)
+    if (params.mediaType === 'image' || params.mediaType === 'video' || params.mediaType === 'audio') return;
     const items = [];
     if (params.isEditable) {
       items.push(
@@ -615,24 +619,44 @@ const sameOrInside = (child, parent) => {
 // ---------------------------------------------------------------------------
 // folder watcher (one per window): the sidebar follows changes made outside the app
 // ---------------------------------------------------------------------------
+const closeWatcher = (w) => {
+  try {
+    if (w) w.close();
+  } catch {
+    /* already closed */
+  }
+};
+
 function stopWatch(entry) {
   if (!entry) return;
-  if (entry.watcher) {
-    try {
-      entry.watcher.close();
-    } catch {
-      /* already closed */
-    }
-  }
+  closeWatcher(entry.watcher);
+  closeWatcher(entry.docWatcher);
   entry.watcher = null;
+  entry.docWatcher = null;
   clearTimeout(entry.watchTimer);
   entry.watchQueue = new Set();
 }
 
-function startWatch(entry, dir) {
-  stopWatch(entry);
+// The open document may live outside the sidebar folder (Open…, command line, Reopen
+// Closed File): its own directory gets a flat watcher so external edits still reload it.
+function startDocWatch(entry, dir) {
+  closeWatcher(entry.docWatcher);
+  entry.docWatcher = null;
   if (!dir || !fs.existsSync(dir)) return false;
-  const onChange = (_event, filename) => {
+  try {
+    entry.docWatcher = fs.watch(dir, { persistent: false }, watchHandler(entry, dir));
+    entry.docWatcher.on('error', () => {
+      closeWatcher(entry.docWatcher);
+      entry.docWatcher = null;
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function watchHandler(entry, dir) {
+  return (_event, filename) => {
     if (filename) {
       const name = String(filename);
       // our own temp files and VCS churn are not interesting
@@ -646,6 +670,15 @@ function startWatch(entry, dir) {
       if (!entry.win.isDestroyed()) entry.win.webContents.send('tree:changed', { dir, paths });
     }, 350);
   };
+}
+
+function startWatch(entry, dir) {
+  closeWatcher(entry.watcher);
+  entry.watcher = null;
+  clearTimeout(entry.watchTimer);
+  entry.watchQueue = new Set();
+  if (!dir || !fs.existsSync(dir)) return false;
+  const onChange = watchHandler(entry, dir);
   try {
     entry.watcher = fs.watch(dir, { recursive: true, persistent: false }, onChange);
   } catch {
@@ -811,6 +844,17 @@ ${css || ''}</style>
   return out;
 }
 
+// Uploader settings come from the config; the renderer may override for a test run.
+function uploaderOptions(override) {
+  const o = override || {};
+  return {
+    uploader: o.uploader ?? cfg('imageUploader') ?? 'none',
+    picgoPath: o.picgoPath ?? cfg('imagePicgoPath') ?? 'picgo',
+    piclistUrl: o.piclistUrl ?? cfg('imagePiclistUrl') ?? 'http://127.0.0.1:36677',
+    command: o.command ?? cfg('imageUploadCommand') ?? '',
+  };
+}
+
 // ---------------------------------------------------------------------------
 // launch: what the first window opens when no file was passed on the command line
 // ---------------------------------------------------------------------------
@@ -907,6 +951,10 @@ function registerIpc() {
     if (!entry) return false;
     return dir ? startWatch(entry, dir) : (stopWatch(entry), false);
   });
+  ipcMain.handle('doc:watch', (e, dir) => {
+    const entry = entryFor(e);
+    return entry ? startDocWatch(entry, dir) : false;
+  });
   ipcMain.handle('search:folder', (_e, payload) => searchFolder(payload || {}));
   ipcMain.handle('file:reveal', (_e, p) => shell.showItemInFolder(p));
   ipcMain.handle('file:create', async (_e, dir, name) => {
@@ -970,31 +1018,16 @@ function registerIpc() {
     return `${content}\n${await themeCss(themeId)}`;
   });
 
-  // Copy a dropped image next to the document and hand back a path the Markdown can use.
-  ipcMain.handle('image:import', async (_e, { src, docPath }) => {
-    if (!src || !fs.existsSync(src)) return null;
-    const destDir = docPath ? path.join(path.dirname(docPath), 'assets') : path.join(app.getPath('pictures'), 'posemark');
-    await fsp.mkdir(destDir, { recursive: true }).catch(() => {});
-    const ext = (path.extname(src) || '.png').toLowerCase();
-    const stem =
-      path
-        .basename(src, path.extname(src))
-        .replace(/[^\w.\-]+/g, '-')
-        .replace(/^-+|-+$/g, '')
-        .slice(0, 60) || 'image';
-    let dest = path.join(destDir, stem + ext);
-    let n = 1;
-    while (fs.existsSync(dest)) dest = path.join(destDir, `${stem}-${n++}${ext}`);
-    await fsp.copyFile(src, dest);
-    const rel = docPath
-      ? path.relative(path.dirname(docPath), dest).split(path.sep).join('/')
-      : dest.split(path.sep).join('/');
-    return { path: dest, rel, alt: stem };
-  });
+  // Images: the renderer works out the destination folder (front matter, preference,
+  // or nothing for an untitled document → Pictures/posemark) and the Markdown path.
+  const imageDir = (destDir) => destDir || path.join(app.getPath('pictures'), 'posemark');
 
-  // Paste an image straight out of the clipboard: land it in assets/ and hand back the path.
+  // Copy a dropped / chosen image (or video) into the document's image folder.
+  ipcMain.handle('image:import', (_e, { src, destDir }) => images.importFile(src, imageDir(destDir)));
+
+  // Paste an image straight out of the clipboard.
   // (Electron 45 dropped `clipboard.readImage`; this uses the W3C-style async API.)
-  ipcMain.handle('image:pasteClipboard', async (_e, { docPath }) => {
+  ipcMain.handle('image:pasteClipboard', async (_e, { destDir }) => {
     const items = (await clipboard.read()) || [];
     let mime = '';
     let bytes = null;
@@ -1010,24 +1043,30 @@ function registerIpc() {
       }
     }
     if (!bytes) return null;
-
-    const ext = mime === 'image/jpeg' ? '.jpg' : mime === 'image/gif' ? '.gif' : mime === 'image/webp' ? '.webp' : '.png';
-    const destDir = docPath ? path.join(path.dirname(docPath), 'assets') : path.join(app.getPath('pictures'), 'posemark');
-    await fsp.mkdir(destDir, { recursive: true }).catch(() => {});
-    const stamp = new Date()
-      .toISOString()
-      .replace(/[-:]/g, '')
-      .replace(/\..+$/, '')
-      .replace('T', '-');
-    let dest = path.join(destDir, `pasted-${stamp}${ext}`);
-    let n = 1;
-    while (fs.existsSync(dest)) dest = path.join(destDir, `pasted-${stamp}-${n++}${ext}`);
-    await fsp.writeFile(dest, bytes);
-    const rel = docPath
-      ? path.relative(path.dirname(docPath), dest).split(path.sep).join('/')
-      : dest.split(path.sep).join('/');
-    return { path: dest, rel, alt: 'pasted image' };
+    return images.writePasted(bytes, mime, imageDir(destDir));
   });
+
+  ipcMain.handle('image:copyTo', (_e, { src, destDir }) => images.copyTo(src, imageDir(destDir)));
+  ipcMain.handle('image:moveTo', (_e, { src, destDir }) => images.moveTo(src, imageDir(destDir)));
+  ipcMain.handle('image:download', (_e, { url, destDir }) => images.download(url, imageDir(destDir), net.fetch));
+  ipcMain.handle('image:upload', (_e, { paths, options }) => images.upload(paths || [], uploaderOptions(options)));
+  ipcMain.handle('image:uploadTest', async (_e, options) => {
+    const file = await images.testImage();
+    try {
+      return await images.upload([file], uploaderOptions(options));
+    } finally {
+      fsp.unlink(file).catch(() => {});
+    }
+  });
+  // put the picture itself on the clipboard (not its path)
+  ipcMain.handle('image:copyToClipboard', (_e, p) => {
+    if (!p || !fs.existsSync(p)) return false;
+    const img = nativeImage.createFromPath(p);
+    if (img.isEmpty()) return false;
+    clipboard.writeImage(img);
+    return true;
+  });
+  ipcMain.handle('image:kind', (_e, name) => (images.isImageName(name) ? 'image' : images.isMediaName(name) ? 'media' : null));
 
   ipcMain.handle('dialog:openImage', async (e, startDir) => {
     const res = await dialog.showOpenDialog(winFor(e), {

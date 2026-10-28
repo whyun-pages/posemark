@@ -11,15 +11,6 @@ tracked in `README.md`; this file lists what is still missing, in the suggested 
 - [ ] General: default export location, open after export, "export with previous settings", YAML front matter overriding export settings
 - [ ] Pandoc-based formats (docx, odt, rtf, epub, LaTeX, MediaWiki, reST, Textile, OPML) and custom command exports
 
-## Batch 4 — images
-
-- [ ] Global insert policy: copy to a chosen folder / keep original path / upload, plus per-document `typora-copy-images-to`
-- [ ] `typora-root-url` for site-root paths; "use relative path", `./` prefix and URL-escape switches
-- [ ] Image context menu: delete image (file too), move / copy image to…, move / copy all images (download remote ones)
-- [ ] Accept Typora's `<img width>` and `style="zoom:50%"` sizing alongside `![alt|320]()`
-- [ ] Image uploaders (PicGo-Core, PicList, custom command) and "Upload All Local Images"
-- [ ] Dropping a video inserts `<video controls>`
-
 ## Batch 5 — math and diagrams
 
 - [ ] Equation auto numbering (none / AMS / all), `\label` and `\ref` cross references

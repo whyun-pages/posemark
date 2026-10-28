@@ -563,3 +563,10 @@ body.theme-dark .md-alert-caution { --alert: #f85149; }
 .cm-source .cm-src-atom { color: var(--accent); font-weight: 600; }
 .cm-source .cm-src-escape { color: var(--hl-number); }
 .cm-source .cm-src-comment { color: var(--hl-comment); font-style: italic; }
+
+/* ------------------------------------------------------------------ video / audio blocks */
+.md-video { margin: 8px 0; }
+.md-video video { max-width: 100%; border-radius: 6px; background: #000; display: block; }
+.md-video audio { width: 100%; display: block; }
+.md-video.error { color: var(--danger); font-family: var(--mono); font-size: .85em; }
+.cm-md-html { font-family: var(--mono); font-size: .92em; color: var(--hl-builtin); }

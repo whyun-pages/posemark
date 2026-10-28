@@ -32,12 +32,12 @@ import {
   ctx,
 } from './editor.js';
 import { refreshLivePreview } from './live-preview.js';
-import { scanBlocks, headingOf } from './blocks.js';
+import { scanBlocks, headingOf, retargetedImageSource, writeImageWidth } from './blocks.js';
 import { htmlToMarkdown, htmlLooksPlain } from './html2md.js';
 import { renderFragment, buildStandaloneHtml, splitFrontMatter, slugify } from './markdown.js';
 import { buildWeChatFragment } from './wechat.js';
 import { renderWeChatPanel, wechatStyleFrom } from './wechat-prefs.js';
-import { basename, dirOf } from './paths.js';
+import { basename, dirOf, resolveFile, imageMarkdownPath, imageFolderFor, parseImageTag, isAbsolutePath, joinDir } from './paths.js';
 import { buildOutlineTree, currentHeadingIndex, outlineMatches, outlineKeys } from './outline.js';
 import { countText, readingTime, formatReadingTime } from './wordcount.js';
 
@@ -78,6 +78,8 @@ const S = {
   // undo stack for rename / move / duplicate / create done from the file tree
   fileOps: [],
   draftPending: false,
+  // front matter keys that steer images: typora-copy-images-to, typora-root-url
+  docMeta: { copyTo: '', rootUrl: '' },
 };
 
 const WELCOME = `# Posemark
@@ -165,6 +167,16 @@ function updateTitle() {
   $('#dirty-dot').hidden = !S.dirty;
   document.title = `${name} — Posemark`;
   window.ink.setState({ path: S.path, title: name, dirty: S.dirty });
+  syncDocWatch();
+}
+
+// Files outside the sidebar folder get their own directory watched (see main.js).
+let watchedDocDir = null;
+function syncDocWatch() {
+  const dir = S.path && !(S.folder && underPath(S.path, S.folder)) ? dirOf(S.path) : null;
+  if (samePath(dir, watchedDocDir) || (!dir && !watchedDocDir)) return;
+  watchedDocDir = dir;
+  window.ink.watchDoc(dir);
 }
 
 function markDirty() {
@@ -177,7 +189,25 @@ function markDirty() {
   updateStatus();
   scheduleAutoSave();
   scheduleDraft();
+  scheduleMeta();
 }
+
+// `typora-copy-images-to` / `typora-root-url` in the front matter steer where images are
+// copied and how `/root-relative` sources resolve. Kept in sync as the document changes.
+function syncDocMeta() {
+  const src = S.view.state.doc;
+  const head = src.sliceString(0, Math.min(src.length, 4000));
+  const meta = head.startsWith('---') || head.startsWith('\uFEFF---') ? splitFrontMatter(head).meta || {} : {};
+  const copyTo = String(meta['typora-copy-images-to'] || '').trim();
+  const rootRaw = String(meta['typora-root-url'] || '').trim();
+  let rootUrl = '';
+  if (rootRaw) rootUrl = isAbsolutePath(rootRaw) ? rootRaw.replace(/\\/g, '/') : dirOf(S.path) ? joinDir(dirOf(S.path), rootRaw) : '';
+  const changed = rootUrl !== (ctx.rootUrl || '');
+  S.docMeta = { copyTo, rootUrl };
+  ctx.rootUrl = rootUrl || null;
+  if (changed && S.view) refreshLivePreview(S.view);
+}
+const scheduleMeta = debounce(syncDocMeta, 400);
 
 // Unsaved-draft backup: the dirty document is mirrored into the app's drafts folder a
 // moment after each edit and removed again once it is saved (or deliberately discarded),
@@ -241,6 +271,7 @@ async function openPath(p) {
     S.dirty = false;
     setSourceMode(S.view, S.sourceMode);
     loadOutlineState();
+    syncDocMeta();
     updateTitle();
     renderOutline();
     updateStatus();
@@ -267,6 +298,7 @@ async function newDocument() {
   S.loading = false;
   S.dirty = false;
   loadOutlineState();
+  syncDocMeta();
   updateTitle();
   renderOutline();
   updateStatus();
@@ -317,6 +349,7 @@ async function reloadFromDisk() {
   view.scrollDOM.scrollTop = scroll;
   S.mtime = res.mtime || 0;
   S.dirty = false;
+  syncDocMeta();
   updateTitle();
   renderOutline();
   updateStatus();
@@ -436,6 +469,7 @@ async function restoreDraft(d) {
   await window.ink.draftRemove(d.id);
   S.dirty = true;
   loadOutlineState();
+  syncDocMeta();
   updateTitle();
   renderOutline();
   updateStatus();
@@ -1109,6 +1143,7 @@ async function togglePinFolder(dir) {
 async function setFolder(dir, { persist = true } = {}) {
   if (!samePath(dir, S.folder)) S.expanded = new Set();
   S.folder = dir;
+  syncDocWatch();
   S.treeCache.clear();
   $('#folder-name').textContent = dir ? basename(dir) : 'No folder opened';
   $('#folder-name').title = dir || '';
@@ -1685,6 +1720,75 @@ const PREF_SECTIONS = [
     ],
   },
   {
+    id: 'images',
+    label: 'Images',
+    groups: [
+      {
+        title: 'Inserting images',
+        fields: [
+          {
+            key: 'imageInsert',
+            label: 'When inserting a local image',
+            type: 'select',
+            hint: 'Applies to dropped, pasted and chosen files; pasted screenshots always need a folder',
+            options: [
+              ['copy', 'Copy it to the image folder'],
+              ['keep', 'Keep the original path'],
+              ['upload', 'Upload it (needs an uploader below)'],
+            ],
+          },
+          {
+            key: 'imageFolder',
+            label: 'Image folder',
+            type: 'text',
+            hint: 'Relative to the document (assets, ${filename}.assets, …) or absolute. A typora-copy-images-to line in the front matter overrides it for that file',
+          },
+        ],
+      },
+      {
+        title: 'Paths written into the Markdown',
+        fields: [
+          { key: 'imageUseRelativePath', label: 'Use relative paths', type: 'bool', hint: 'Off: absolute paths. A typora-root-url in the front matter makes paths site-root relative (/…)' },
+          { key: 'imageDotSlash', label: 'Prefix relative paths with ./', type: 'bool' },
+          { key: 'imageUrlEscape', label: 'URL-encode spaces and special characters', type: 'bool', hint: 'Off: paths with spaces are wrapped in <…> instead' },
+        ],
+      },
+      {
+        title: 'Image uploader',
+        fields: [
+          {
+            key: 'imageUploader',
+            label: 'Uploader',
+            type: 'select',
+            hint: 'Used by Upload Image, Upload All Local Images, and the "upload" insert policy',
+            options: [
+              ['none', 'None'],
+              ['picgo-core', 'PicGo-Core (command line)'],
+              ['piclist', 'PicList (HTTP server)'],
+              ['custom', 'Custom command'],
+            ],
+          },
+          { key: 'imagePicgoPath', label: 'PicGo-Core command', type: 'text', hint: 'picgo, or the full path to the picgo binary' },
+          { key: 'imagePiclistUrl', label: 'PicList server', type: 'text', hint: 'The app listens on http://127.0.0.1:36677 by default' },
+          { key: 'imageUploadCommand', label: 'Custom command', type: 'text', hint: 'Gets the file paths as arguments and must print one URL per line' },
+          {
+            key: 'imageUploadTest',
+            label: 'Validate the uploader',
+            type: 'button',
+            text: 'Test Upload',
+            hint: 'Uploads a tiny test picture and shows the URL it came back with',
+            run: async () => {
+              flashMessage('Uploading a test image…');
+              const res = await window.ink.uploadTest();
+              if (res && res.urls && res.urls[0]) await window.ink.info({ message: 'Upload succeeded', detail: res.urls[0] });
+              else await window.ink.info({ message: 'Upload failed', detail: `${(res && res.error) || 'Unknown error'}${res && res.output ? `\n\n${res.output.slice(0, 1500)}` : ''}` });
+            },
+          },
+        ],
+      },
+    ],
+  },
+  {
     id: 'markdown',
     label: 'Markdown',
     groups: [
@@ -2131,6 +2235,7 @@ const commands = {
       S.dirty = false;
       setSourceMode(S.view, S.sourceMode);
       loadOutlineState();
+    syncDocMeta();
       updateTitle();
       renderOutline();
       updateStatus();
@@ -2217,8 +2322,12 @@ const commands = {
   'fmt:link': () => insertLink(S.view),
   'fmt:image': async () => {
     const p = await window.ink.openImageDialog(S.folder || dirOf(S.path));
-    insertImage(S.view, p ? p.replace(/\\/g, '/') : '');
+    if (!p) return insertImage(S.view, '');
+    if (!(await insertImageFromPath(p))) insertImage(S.view, mdPath(p));
   },
+  'image:uploadAll': () => relocateAllImages('upload'),
+  'image:moveAll': () => relocateAllImages('move'),
+  'image:copyAll': () => relocateAllImages('copy'),
   'fmt:clear': () => clearStyle(S.view),
   'view:sourceMode': () => {
     S.sourceMode = !S.sourceMode;
@@ -2278,7 +2387,7 @@ const commands = {
     await window.ink.openThemeFolder();
     flashMessage('Edits apply when the theme is re-selected or the window is reloaded (Ctrl+R)');
   },
-  'app:preferences': () => openPrefs(),
+  'app:preferences': (section) => openPrefs(typeof section === 'string' ? section : undefined),
   'app:closeWindow': () => attemptClose(),
   'app:quit': () => attemptClose(),
   'app:requestClose': () => attemptClose(),
@@ -2346,13 +2455,14 @@ function initResizer() {
 // ---------------------------------------------------------------------------
 // boot
 // ---------------------------------------------------------------------------
-// drag & drop images
+// images: insert policy, paths, context menu, move / copy / upload
 // ---------------------------------------------------------------------------
-const IMAGE_EXT = /\.(png|jpe?g|gif|svg|webp|bmp|avif|tiff?)$/i;
+const IMAGE_EXT = /\.(png|jpe?g|gif|svg|webp|bmp|avif|tiff?|ico|apng)$/i;
+const MEDIA_EXT = /\.(mp4|webm|ogv|ogg|mov|m4v|mp3|wav|m4a|flac|aac)$/i;
 const dropHint = document.createElement('div');
 dropHint.className = 'drop-hint';
 dropHint.hidden = true;
-dropHint.textContent = 'Drop to insert image';
+dropHint.textContent = 'Drop to insert image or video';
 document.body.appendChild(dropHint);
 
 function hasFiles(e) {
@@ -2360,11 +2470,314 @@ function hasFiles(e) {
   return !!t && [...t].includes('Files');
 }
 
-async function insertImageFromPath(srcPath, pos) {
-  const res = await window.ink.importImage(srcPath, S.path || null);
-  if (!res) return false;
-  insertSnippet(`![${res.alt}](${res.rel})`, pos);
+// Where inserted images go for this document (null → the app's Pictures/posemark).
+function imageDest() {
+  return imageFolderFor({ docPath: S.path, copyTo: S.docMeta.copyTo, fallback: S.config.imageFolder || 'assets' });
+}
+
+// The path written into the Markdown for an absolute image file.
+function mdPath(absPath) {
+  return imageMarkdownPath(absPath, {
+    docPath: S.path,
+    rootUrl: ctx.rootUrl,
+    useRelative: S.config.imageUseRelativePath !== false,
+    dotSlash: !!S.config.imageDotSlash,
+    urlEscape: S.config.imageUrlEscape !== false,
+  });
+}
+
+const hasUploader = () => !!S.config.imageUploader && S.config.imageUploader !== 'none';
+
+// `![alt](…)` for a local file, uploading first when that is the insert policy.
+async function insertLocalImage(absPath, alt, pos) {
+  if ((S.config.imageInsert || 'copy') === 'upload' && hasUploader()) {
+    const up = await window.ink.uploadImages([absPath]);
+    if (up && up.urls && up.urls[0]) {
+      insertSnippet(`![${alt}](${up.urls[0]})`, pos);
+      flashMessage('Image uploaded');
+      return true;
+    }
+    flashMessage(`Upload failed (${(up && up.error) || 'unknown error'}) — inserted the local file instead`);
+  }
+  insertSnippet(`![${alt}](${mdPath(absPath)})`, pos);
   return true;
+}
+
+// A dropped / chosen file: copied into the image folder (policy "copy" / "upload") or
+// referenced where it is ("keep"). Videos and audio become `<video>` / `<audio>` tags.
+async function insertImageFromPath(srcPath, pos) {
+  const isMedia = MEDIA_EXT.test(srcPath);
+  if (!isMedia && !IMAGE_EXT.test(srcPath)) return false;
+  const policy = S.config.imageInsert || 'copy';
+  let abs = srcPath.replace(/\\/g, '/');
+  let alt = basename(srcPath).replace(/\.[^.]+$/, '');
+  if (policy !== 'keep') {
+    const res = await window.ink.importImage(srcPath, imageDest());
+    if (!res) return false;
+    abs = res.path;
+    alt = res.alt;
+  }
+  if (isMedia) {
+    const tag = /\.(mp3|wav|m4a|flac|aac)$/i.test(srcPath) ? 'audio' : 'video';
+    insertSnippet(`<${tag} controls src="${mdPath(abs)}"></${tag}>`, pos);
+    return true;
+  }
+  return insertLocalImage(abs, alt, pos);
+}
+
+const IMG_MD_RE = /!\[([^\]]*)\]\(\s*(<[^>]*>|[^)\s]+)?\s*(?:"[^"]*")?\s*\)/g;
+const IMG_HTML_RE = /<(?:img|video|audio)\b[^>]*>/gi;
+
+// Every image / media reference in the document, in order, with its source range.
+function collectImages() {
+  const { state } = S.view;
+  const doc = state.doc;
+  const out = [];
+  for (let n = 1; n <= doc.lines; n++) {
+    const line = doc.line(n);
+    const text = line.text;
+    if (!text.includes('![') && !/<(img|video|audio)\b/i.test(text)) continue;
+    for (const re of [IMG_MD_RE, IMG_HTML_RE]) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(text))) {
+        const from = line.from + m.index;
+        if (inCodeAt(state, from)) continue;
+        const raw = m[0];
+        const src = re === IMG_MD_RE ? (m[2] || '').replace(/^<|>$/g, '') : (parseImageTag(raw) || {}).src || '';
+        if (src) out.push({ from, to: from + raw.length, raw, src });
+      }
+    }
+  }
+  out.sort((a, b) => a.from - b.from);
+  return out;
+}
+
+function rewriteImageAt(from, to, newSrc) {
+  const raw = S.view.state.doc.sliceString(from, to);
+  const next = retargetedImageSource(raw, newSrc);
+  if (next == null || next === raw) return false;
+  S.view.dispatch({ changes: { from, to, insert: next } });
+  return true;
+}
+
+// Remove the image's Markdown (and the line, when nothing else is on it).
+function removeImageSource(from, to) {
+  const doc = S.view.state.doc;
+  const line = doc.lineAt(from);
+  const rest = (line.text.slice(0, from - line.from) + line.text.slice(to - line.from)).trim();
+  if (!rest) {
+    const end = line.number < doc.lines ? doc.line(line.number + 1).from : line.to;
+    S.view.dispatch({ changes: { from: line.from, to: end } });
+  } else S.view.dispatch({ changes: { from, to } });
+}
+
+async function pickImageFolder() {
+  return window.ink.pickFolder(imageDest() || S.folder || dirOf(S.path) || undefined);
+}
+
+// Right-click menu on a rendered image.
+function imageMenuItems(span) {
+  const from = Number(span.dataset.from);
+  const to = Number(span.dataset.to);
+  const src = span.dataset.src || '';
+  const img = span.querySelector('img');
+  const file = resolveFile(src);
+  const remote = /^https?:/i.test(src);
+  const items = [];
+  items.push({ label: 'Open Image', run: () => (file ? window.ink.openPath(file) : window.ink.openExternal(src)) });
+  if (file) items.push({ label: 'Reveal in File Explorer', run: () => window.ink.reveal(file) });
+  if (file) {
+    items.push({
+      label: 'Copy Image',
+      run: async () => {
+        const ok = await window.ink.copyImageToClipboard(file);
+        flashMessage(ok ? 'Image copied' : 'Could not read the image');
+      },
+    });
+  }
+  items.push({
+    label: 'Copy Image Path',
+    run: async () => {
+      await window.ink.clipboardWrite(file || src);
+      flashMessage('Path copied');
+    },
+  });
+  items.push('-');
+  const natural = img && img.naturalWidth ? img.naturalWidth : 0;
+  for (const pct of [25, 50, 75]) {
+    items.push({
+      label: `Zoom ${pct}%`,
+      hint: natural ? `${Math.round((natural * pct) / 100)}px` : '',
+      run: () => {
+        if (!natural) return flashMessage('Image size is not known yet');
+        writeImageWidth(S.view, from, to, Math.round((natural * pct) / 100), 0);
+      },
+    });
+  }
+  items.push({ label: 'Original Size', run: () => writeImageWidth(S.view, from, to, 0, 0) });
+  items.push('-');
+  if (file && hasUploader()) {
+    items.push({
+      label: 'Upload Image',
+      run: async () => {
+        flashMessage('Uploading…');
+        const up = await window.ink.uploadImages([file]);
+        if (up && up.urls && up.urls[0]) {
+          rewriteImageAt(from, to, up.urls[0]);
+          flashMessage('Uploaded — the link now points at the remote copy');
+        } else flashMessage(`Upload failed: ${(up && up.error) || 'unknown error'}`);
+      },
+    });
+  }
+  if (file) {
+    items.push({
+      label: 'Move Image To…',
+      run: async () => {
+        const dir = await pickImageFolder();
+        if (!dir) return;
+        const res = await window.ink.moveImageTo(file, dir);
+        if (!res || res.error) return flashMessage('Could not move the image');
+        if (!res.unchanged) rewriteImageAt(from, to, mdPath(res.path));
+      },
+    });
+    items.push({
+      label: 'Copy Image To…',
+      run: async () => {
+        const dir = await pickImageFolder();
+        if (!dir) return;
+        const res = await window.ink.copyImageTo(file, dir);
+        if (!res || res.error) return flashMessage('Could not copy the image');
+        if (!res.unchanged) rewriteImageAt(from, to, mdPath(res.path));
+      },
+    });
+  }
+  if (remote) {
+    items.push({
+      label: 'Download Image To Folder',
+      run: async () => {
+        flashMessage('Downloading…');
+        const res = await window.ink.downloadImage(src, imageDest());
+        if (!res || res.error) return flashMessage(`Download failed: ${(res && res.error) || 'unknown error'}`);
+        rewriteImageAt(from, to, mdPath(res.path));
+        flashMessage(`Saved to ${basename(res.path)}`);
+      },
+    });
+  }
+  items.push({
+    label: file ? 'Delete Image (file too)' : 'Remove Image',
+    danger: true,
+    run: async () => {
+      if (file) {
+        const res = await window.ink.confirm({
+          message: `Delete \u201c${basename(file)}\u201d?`,
+          detail: 'The file goes to the recycle bin and the image is removed from the document.',
+          buttons: ['Delete', 'Cancel'],
+          defaultId: 1,
+          cancelId: 1,
+        });
+        if (res !== 0) return;
+        await window.ink.deletePath(file);
+      }
+      removeImageSource(from, to);
+    },
+  });
+  items.push('-');
+  items.push({ label: 'Move All Images To…', run: () => relocateAllImages('move') });
+  items.push({ label: 'Copy All Images To…', run: () => relocateAllImages('copy') });
+  if (hasUploader()) items.push({ label: 'Upload All Local Images', run: () => relocateAllImages('upload') });
+  return items;
+}
+
+// Move / copy every image into one folder (remote ones are downloaded), or upload every
+// local one. The Markdown is rewritten to the new locations in a single undo step.
+async function relocateAllImages(mode, destOverride) {
+  const items = collectImages();
+  if (!items.length) {
+    flashMessage('No images in this document');
+    return { done: 0 };
+  }
+  let dest = destOverride || null;
+  if (mode !== 'upload' && !dest) {
+    dest = await pickImageFolder();
+    if (!dest) return { done: 0 };
+  }
+  if (mode === 'upload' && !hasUploader()) {
+    flashMessage('Set up an image uploader first (Preferences › Images)');
+    return { done: 0 };
+  }
+  const stats = { done: 0, failed: 0, downloaded: 0, skipped: 0 };
+  const changes = [];
+  const resolved = new Map(); // file -> new source, so a file used twice moves once
+
+  if (mode === 'upload') {
+    const files = [...new Set(items.map((it) => resolveFile(it.src)).filter(Boolean))];
+    if (!files.length) {
+      flashMessage('No local images to upload');
+      return stats;
+    }
+    flashMessage(`Uploading ${files.length} image${files.length > 1 ? 's' : ''}…`);
+    const up = await window.ink.uploadImages(files);
+    if (!up || !up.urls) {
+      flashMessage(`Upload failed: ${(up && up.error) || 'unknown error'}`);
+      return { ...stats, failed: files.length, error: up && up.error };
+    }
+    files.forEach((f, i) => resolved.set(f, up.urls[i]));
+  }
+
+  for (const it of items) {
+    const file = resolveFile(it.src);
+    const remote = /^https?:/i.test(it.src);
+    let next = null;
+    if (mode === 'upload') {
+      next = file ? resolved.get(file) : null;
+      if (!file) stats.skipped++;
+    } else if (remote) {
+      const r = await window.ink.downloadImage(it.src, dest);
+      if (r && r.path) {
+        next = mdPath(r.path);
+        stats.downloaded++;
+      } else stats.failed++;
+    } else if (file) {
+      if (resolved.has(file)) next = resolved.get(file);
+      else {
+        const r = mode === 'move' ? await window.ink.moveImageTo(file, dest) : await window.ink.copyImageTo(file, dest);
+        if (r && r.path) {
+          next = mdPath(r.path);
+          resolved.set(file, next);
+        } else stats.failed++;
+      }
+    } else stats.skipped++;
+    if (next && next !== it.src) {
+      const insert = retargetedImageSource(it.raw, next);
+      if (insert && insert !== it.raw) {
+        changes.push({ from: it.from, to: it.to, insert });
+        stats.done++;
+      }
+    }
+  }
+  if (changes.length) S.view.dispatch({ changes, userEvent: 'input.images' });
+  const verb = mode === 'move' ? 'Moved' : mode === 'copy' ? 'Copied' : 'Uploaded';
+  const bits = [`${verb} ${stats.done} image${stats.done === 1 ? '' : 's'}`];
+  if (stats.downloaded) bits.push(`${stats.downloaded} downloaded`);
+  if (stats.failed) bits.push(`${stats.failed} failed`);
+  if (stats.skipped) bits.push(`${stats.skipped} skipped`);
+  flashMessage(bits.join(' · '));
+  return stats;
+}
+
+function wireImageMenu() {
+  $('#editor').addEventListener(
+    'contextmenu',
+    (e) => {
+      const span = e.target.closest('.md-inline-image');
+      if (!span) return;
+      e.preventDefault();
+      e.stopPropagation();
+      openCtxMenu(e.clientX, e.clientY, imageMenuItems(span));
+    },
+    true,
+  );
 }
 
 // Drop `snippet` in on its own paragraph, where the caret is.
@@ -2375,7 +2788,9 @@ function insertSnippet(snippet, pos) {
   const line = doc.lineAt(at);
   const before = line.text.slice(0, at - line.from);
   const after = line.text.slice(at - line.from);
-  const lead = before.trim() ? '\n\n' : '';
+  // a blank line above keeps the snippet out of a preceding HTML block / paragraph
+  const prevText = line.number > 1 ? doc.line(line.number - 1).text : '';
+  const lead = before.trim() ? '\n\n' : prevText.trim() ? '\n' : '';
   const tail = after.trim() ? '\n\n' : '\n';
   const text = `${lead}${snippet}${tail}`;
   view.dispatch({
@@ -2407,13 +2822,13 @@ function wirePaste() {
       if (hasImage) {
         e.preventDefault();
         e.stopPropagation();
-        const res = await window.ink.pasteImage(S.path || null);
+        const res = await window.ink.pasteImage(imageDest());
         if (!res) {
           flashMessage('Clipboard has no image');
           return;
         }
-        insertSnippet(`![${res.alt}](${res.rel})`);
-        flashMessage(`Pasted to ${res.rel}`);
+        await insertLocalImage(res.path, res.alt);
+        flashMessage(`Pasted to ${basename(res.path)}`);
         return;
       }
       // smart paste: only into the Markdown text itself, not table cells or the math field
@@ -2584,7 +2999,7 @@ function wireImageDrop() {
     e.stopPropagation();
     dropHint.hidden = true;
     const files = [...(e.dataTransfer.files || [])].filter(
-      (f) => /^image\//i.test(f.type) || IMAGE_EXT.test(f.name || ''),
+      (f) => /^(image|video|audio)\//i.test(f.type) || IMAGE_EXT.test(f.name || '') || MEDIA_EXT.test(f.name || ''),
     );
     if (!files.length) return;
     let at = S.view.posAtCoords({ x: e.clientX, y: e.clientY });
@@ -2615,6 +3030,7 @@ async function boot() {
   });
   applyRuntimeConfig();
   wireImageDrop();
+  wireImageMenu();
   wirePaste();
   wireTree();
   wireList();
@@ -2627,6 +3043,11 @@ async function boot() {
   $('#filetree').hidden = S.filesView !== 'tree';
   $('#filelist').hidden = S.filesView !== 'list';
   window.ink.onTreeChanged(onTreeChanged);
+  // coming back to the window is a cheap moment to notice edits made elsewhere
+  window.addEventListener('focus', () => {
+    checkExternalChange();
+    syncDocWatch();
+  });
 
   // initial document: the file / folder this window was opened for (main applies the
   // launch preference for the first window: new document, last folder, last file, fixed folder)
@@ -2775,6 +3196,15 @@ async function boot() {
     drafts: () => window.ink.draftList(),
     writeDraft: () => writeDraft(),
     theme: () => ({ id: S.themeId, href: $('#theme-css').getAttribute('href'), user: $('#user-css').textContent.length }),
+    images: () => collectImages(),
+    relocateImages: (mode, dest) => relocateAllImages(mode, dest),
+    imageDest: () => imageDest(),
+    mdPath: (p) => mdPath(p),
+    docMeta: () => ({ ...S.docMeta, rootUrl: ctx.rootUrl }),
+    imageMenu: (index) => {
+      const spans = [...document.querySelectorAll('.md-inline-image')];
+      return spans[index] ? imageMenuItems(spans[index]).map((it) => (it === '-' ? '-' : it.label)) : null;
+    },
   };
 }
 

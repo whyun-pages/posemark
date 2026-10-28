@@ -32,7 +32,7 @@ Then drop the official `electron-v<version>-win32-x64.zip` (from
 ## Test and release
 
 ```bash
-pnpm test            # unit tests (node:test): Markdown renderer, path helpers, outline, word count, drafts, user themes
+pnpm test            # unit tests (node:test): Markdown renderer, paths, images, outline, word count, drafts, user themes
 pnpm dist            # package an installer for the current OS into release/
 ```
 
@@ -139,9 +139,28 @@ Right-click anything in the file tree for new file / new folder / rename / trash
 - Relative image paths resolved against the current document; the picture renders inline, and while
   you edit its `![]()` line the image shows underneath the source (with its alt text as caption,
   and a `missing: …` panel when the path does not resolve)
-- **Drop an image file onto the editor** and it is copied into `assets/` next to the document (unique
-  name if it already exists) with `![name](assets/name.ext)` inserted at the drop point; with no file
-  open it goes to `Pictures/posemark`. A dashed overlay shows the drop zone while you drag.
+- **Drop an image file onto the editor** and it is copied into the document's image folder
+  (`assets/` by default, unique name if it already exists) with `![name](assets/name.ext)` inserted at
+  the drop point; with no file open it goes to `Pictures/posemark`. A dashed overlay shows the drop
+  zone while you drag. **Dropping a video or audio file** inserts `<video controls src="…">` /
+  `<audio controls src="…">`, rendered as a player in place.
+- **Image insert policy** (Preferences › Images): copy into the image folder, keep the original path,
+  or upload straight away. The folder is relative to the document (`assets`, `${filename}.assets`) or
+  absolute, and a `typora-copy-images-to: ./img` line in the front matter overrides it per file.
+  Written paths are relative by default (`./` prefix and URL-escaping are switches); with
+  `typora-root-url: /path` in the front matter, `/images/x.png` resolves against that root and newly
+  inserted images under it are written as `/…` site-root paths.
+- **`<img>` tags work like Markdown images**: `<img src="a.png" width="320">` and
+  `style="zoom:50%"` (what Typora writes) render at that size, inline or on a line of their own, the
+  resize handle rewrites the `width` attribute, and the live preview under the edited line shows them
+- **Right-click a rendered image** for: open, reveal in Explorer, copy image / path, zoom 25 / 50 / 75 %
+  or original size, upload (with an uploader set up), move or copy the file to another folder, download
+  a remote image into the image folder, delete (file to the recycle bin, Markdown removed), plus
+  **Move All / Copy All Images To…** (remote ones are downloaded) and **Upload All Local Images**,
+  all rewriting the document in one undo step. The same batch commands live under `Format › Image`.
+- **Image uploaders**: PicGo-Core (`picgo upload`), PicList (its HTTP server) or any custom command
+  that gets the file paths as arguments and prints one URL per line; Preferences › Images has a
+  "Test Upload" button that sends a 1×1 PNG and shows the URL that came back
 - **Click an image to resize it**: a frame + corner handle appear, dragging scales it with the aspect
   ratio locked, and the width is written into the Markdown as `![alt|320](pic.png)`. Hold **Shift**
   while dragging to unlock the ratio — that writes `![alt|320x140](pic.png)` (both attributes land in
@@ -295,6 +314,7 @@ src/main/        main process: windows, menu, IPC, config store, PDF pipeline
 src/main/menu.js application menu (the Typora-like menu tree)
 src/main/drafts.js      unsaved-draft backups under userData/drafts
 src/main/user-themes.js user theme folder (base.user.css, <theme>.user.css, whole themes)
+src/main/images.js      image files: import / copy / move / download, uploaders (PicGo-Core, PicList, command)
 src/renderer/    renderer bundle
   main.js        app shell: files, sidebar, outline, status bar, command dispatch, export
   editor.js      CodeMirror 6 setup + paragraph/format commands
@@ -303,7 +323,7 @@ src/renderer/    renderer bundle
   markdown.js    markdown-it instance for export / copy-as-HTML / table rendering
   wechat.js      copy-for-WeChat: inline style profile + rasteriser for maths and diagrams
   syntax.js      highlight.js wrapper
-  paths.js       relative-path → file:// resolution
+  paths.js       path helpers: file:// resolution, typora-root-url, Markdown image paths, <img> parsing
   outline.js     outline tree / filter / current-heading helpers
   wordcount.js   word count panel figures and reading time
   styles/        app.css, editor.css, content.css (export), themes/*.css
@@ -336,7 +356,7 @@ docs/            screenshots
 
 - Editing the *inside* of a rendered formula (picking a sub-expression in the KaTeX tree) — the field
   is whole-TeX, not structural. Tables, code, mermaid and images are all editable in place now.
-- Pandoc export (docx / EPUB / LaTeX), image uploaders, spell-check dictionaries beyond Chromium's.
+- Pandoc export (docx / EPUB / LaTeX), spell-check dictionaries beyond Chromium's.
 - Math auto-numbering and `\label`/`\ref`; `sequence` / `flow` diagram languages (only Mermaid).
 - Strict mode only relaxes headings; list indentation still follows GFM.
 - Tabs: one document per window, like Typora (`Ctrl+Tab` switches windows instead).

@@ -20,6 +20,7 @@ import {
   MathFieldWidget,
   DiagramLivePreviewWidget,
   ImageLivePreviewWidget,
+  VideoWidget,
   TocWidget,
   headingOf,
   ctx,
@@ -238,6 +239,10 @@ const MARK_CLASS = {
 const EXTRA_INLINE = [{ re: /==([^=\n]+)==/g, cls: 'md-mark', mark: 2 }];
 // ![alt](src "title") — used for the preview shown while editing an image line.
 const IMG_RE = /!\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"([^"]*)")?\s*\)/g;
+// <img …> written by hand (or by Typora), inline or on a line of its own
+const IMG_TAG_RE = /<img\b[^>]*>/gi;
+const IMG_TAG_ONLY = /^\s*<img\b[^>]*>\s*$/i;
+const MEDIA_BLOCK = /^\s*<(video|audio)\b[^>]*>(?:\s*<\/\1>)?\s*$/i;
 
 // ---------------------------------------------------------------------------
 // decoration builder
@@ -431,11 +436,44 @@ function buildInner(state) {
         const raw = doc.sliceString(node.from, node.to);
         const m = /^!\[([^\]]*)\]\(\s*(<[^>]*>|[^)\s]+)?\s*(?:"([^"]*)")?\s*\)$/.exec(raw);
         if (m) {
-          const widget = new ImageWidget((m[2] || '').replace(/^<|>$/g, ''), m[1], m[3] || '', {
-            from: node.from,
-            to: node.to,
-          });
+          const item = { kind: 'md', raw, src: (m[2] || '').replace(/^<|>$/g, ''), alt: m[1], title: m[3] || '' };
+          const widget = new ImageWidget(item, { from: node.from, to: node.to });
           pushReplace(node.from, node.to, Decoration.replace({ widget }));
+        }
+        return false;
+      }
+      // raw HTML: `<img>` renders like a Markdown image (with its width / zoom), a lone
+      // `<video>` / `<audio>` becomes a player
+      if (name === 'HTMLTag' || name === 'HTMLBlock') {
+        const raw = doc.sliceString(node.from, node.to);        if (name === 'HTMLTag' ? /^<img\b/i.test(raw) : IMG_TAG_ONLY.test(raw)) {
+          if (lineActive(node.from)) {
+            decos.push(Decoration.mark({ class: 'md-image-src' }).range(node.from, node.to));
+            return false;
+          }
+          const lead = raw.length - raw.trimStart().length;
+          const trail = raw.length - raw.trimEnd().length;
+          const widget = new ImageWidget({ kind: 'html', raw: raw.trim() }, { from: node.from + lead, to: node.to - trail });
+          pushReplace(node.from + lead, node.to - trail, Decoration.replace({ widget }));
+          return false;
+        }
+        // `<video>` / `<audio>` are not CommonMark block tags, so a player on a line of its
+        // own arrives as inline HTMLTag nodes inside a paragraph: take the whole line.
+        const mediaLine = name === 'HTMLTag' && /^<(video|audio)\b/i.test(raw) ? doc.lineAt(node.from) : null;
+        const isMediaBlock = name === 'HTMLBlock' ? MEDIA_BLOCK.test(raw) : !!mediaLine && MEDIA_BLOCK.test(mediaLine.text);
+        if (isMediaBlock) {
+          const from = mediaLine ? mediaLine.from : node.from;
+          const to = mediaLine ? mediaLine.to : node.to;
+          const first = doc.lineAt(from).number;
+          const last = doc.lineAt(to).number;
+          let touched = false;
+          for (let n = first; n <= last; n++) if (active.has(n)) touched = true;
+          if (touched) {
+            addLineClasses(from, to, 'cm-md-html');
+            return false;
+          }
+          const text = doc.sliceString(from, to).trim();
+          pushReplace(from, to, Decoration.replace({ widget: new VideoWidget(text, { from, to }), block: true }));
+          return false;
         }
         return false;
       }
@@ -515,13 +553,18 @@ function buildInner(state) {
 
     const lazy = active.has(n);
     // images: while the line is being edited, show the picture underneath its source
-    if (lazy && line.text.includes('![')) {
+    if (lazy && (line.text.includes('![') || /<img\b/i.test(line.text))) {
       const found = [];
       IMG_RE.lastIndex = 0;
       let im;
       while ((im = IMG_RE.exec(line.text)) && found.length < 3) {
         if (inCode(line.from + im.index)) continue;
-        found.push({ src: im[2], alt: im[1] || '', title: im[3] || '' });
+        found.push({ kind: 'md', raw: im[0], src: im[2], alt: im[1] || '', title: im[3] || '' });
+      }
+      IMG_TAG_RE.lastIndex = 0;
+      while ((im = IMG_TAG_RE.exec(line.text)) && found.length < 3) {
+        if (inCode(line.from + im.index)) continue;
+        found.push({ kind: 'html', raw: im[0] });
       }
       if (found.length) {
         decos.push(
