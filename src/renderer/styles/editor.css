@@ -570,3 +570,7 @@ body.theme-dark .md-alert-caution { --alert: #f85149; }
 .md-video audio { width: 100%; display: block; }
 .md-video.error { color: var(--danger); font-family: var(--mono); font-size: .85em; }
 .cm-md-html { font-family: var(--mono); font-size: .92em; color: var(--hl-builtin); }
+
+/* ------------------------------------------------------------------ equation references */
+.md-eqref { color: var(--link); cursor: pointer; }
+.md-eqref:hover { text-decoration: underline; }

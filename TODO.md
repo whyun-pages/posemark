@@ -11,13 +11,6 @@ tracked in `README.md`; this file lists what is still missing, in the suggested 
 - [ ] General: default export location, open after export, "export with previous settings", YAML front matter overriding export settings
 - [ ] Pandoc-based formats (docx, odt, rtf, epub, LaTeX, MediaWiki, reST, Textile, OPML) and custom command exports
 
-## Batch 5 — math and diagrams
-
-- [ ] Equation auto numbering (none / AMS / all), `\label` and `\ref` cross references
-- [ ] mhchem (`\ce{}`), physics package, `\(...\)` / `\[...\]` delimiters, ` ```math ` blocks
-- [ ] `sequence` (js-sequence) and `flow` (flowchart.js) code blocks
-- [ ] Mermaid options via CSS variables (theme, font, sequence numbers, flowchart curve), right-click save as SVG / PNG
-
 ## Editor details
 
 - [ ] Inline HTML and HTML blocks rendered and editable in place (`<details>`, `<video>`, `<audio>`, `<iframe>`, `<kbd>`…)

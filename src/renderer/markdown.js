@@ -4,6 +4,8 @@ import { full as emojiPlugin } from 'markdown-it-emoji';
 import katex from 'katex';
 import { highlightCode, isDiagramLang } from './syntax.js';
 import { ctx, resolveSrc } from './paths.js';
+import { diagramSource } from './diagrams.js';
+import { renderTex, numberEquations, prepareTex, labelsOf, renderRefText } from './math.js';
 
 export const mdit = new MarkdownIt({
   html: true,
@@ -96,13 +98,9 @@ mdit.block.ruler.before('heading', 'posemark_lenient_heading', (state, startLine
 // ---------------------------------------------------------------------------
 // math
 // ---------------------------------------------------------------------------
-function renderMath(tex, displayMode) {
+function renderMath(tex, displayMode, env, number = 0) {
   try {
-    return katex.renderToString(tex, {
-      displayMode,
-      throwOnError: false,
-      output: displayMode ? 'html' : 'html',
-    });
+    return renderTex(prepareTex(tex, { number, labels: env && env.mathLabels }), displayMode);
   } catch (err) {
     const message = err && err.message ? err.message : String(err);
     return `<span class="katex-error" title="${mdit.utils.escapeHtml(message)}">${mdit.utils.escapeHtml(tex)}</span>`;
@@ -134,7 +132,40 @@ mdit.inline.ruler.after('escape', 'math_inline', (state, silent) => {
   return true;
 });
 
-mdit.renderer.rules.math_inline = (tokens, idx) => renderMath(tokens[idx].content, false);
+mdit.renderer.rules.math_inline = (tokens, idx, _o, env) => renderMath(tokens[idx].content, false, env);
+
+// \( … \) inline math, and \eqref{} / \ref{} in prose
+// (registered ahead of `escape`, which would otherwise swallow the backslash)
+mdit.inline.ruler.before('escape', 'math_inline_paren', (state, silent) => {
+  if (state.src.charCodeAt(state.pos) !== 0x5c /* \\ */ || state.src[state.pos + 1] !== '(') return false;
+  const end = state.src.indexOf('\\)', state.pos + 2);
+  if (end < 0 || end > state.posMax) return false;
+  const content = state.src.slice(state.pos + 2, end);
+  if (!content.trim()) return false;
+  if (silent) return true;
+  const token = state.push('math_inline', 'math', 0);
+  token.content = content;
+  token.markup = '\\(';
+  state.pos = end + 2;
+  return true;
+});
+
+mdit.inline.ruler.before('escape', 'math_ref', (state, silent) => {
+  if (state.src.charCodeAt(state.pos) !== 0x5c) return false;
+  const m = /^\\(eqref|ref)\{([^}\n]+)\}/.exec(state.src.slice(state.pos, state.posMax));
+  if (!m) return false;
+  if (silent) return true;
+  const token = state.push('math_ref', 'a', 0);
+  token.content = m[2].trim();
+  state.pos += m[0].length;
+  return true;
+});
+
+mdit.renderer.rules.math_ref = (tokens, idx, _o, env) => {
+  const label = tokens[idx].content;
+  const text = renderRefText(env && env.mathLabels, label);
+  return `<a class="eqref" href="#eq-${mdit.utils.escapeHtml(encodeURIComponent(label))}">${mdit.utils.escapeHtml(text)}</a>`;
+};
 
 // Typora-style extras: ==mark==, ^sup^, ~sub~
 function extraInline(marker, tag) {
@@ -223,21 +254,75 @@ function rangeLines(state, from, to) {
   return out;
 }
 
-mdit.renderer.rules.math_block = (tokens, idx) => `<div class="math-block">${renderMath(tokens[idx].content, true)}</div>\n`;
+// \[ … \] display math, LaTeX style
+mdit.block.ruler.before('fence', 'math_block_bracket', (state, startLine, _endLine, silent) => {
+  let pos = state.bMarks[startLine] + state.tShift[startLine];
+  let max = state.eMarks[startLine];
+  if (pos + 2 > max || state.src.slice(pos, pos + 2) !== '\\[') return false;
+  pos += 2;
+  let firstLine = state.src.slice(pos, max);
+  if (silent) return true;
+  let lastLine = '';
+  let next = startLine;
+  let found = false;
+  if (firstLine.trim().endsWith('\\]')) {
+    firstLine = firstLine.trim().slice(0, -2);
+    found = true;
+  }
+  while (!found) {
+    next++;
+    if (next >= state.lineMax) break;
+    pos = state.bMarks[next] + state.tShift[next];
+    max = state.eMarks[next];
+    if (pos < max && state.tShift[next] < state.blkIndent) break;
+    const line = state.src.slice(pos, max);
+    if (line.trim().endsWith('\\]')) {
+      lastLine = line.trim().slice(0, -2);
+      found = true;
+    }
+  }
+  if (!found) return false;
+  state.line = next + 1;
+  const token = state.push('math_block', 'math', 0);
+  token.block = true;
+  token.content = [firstLine, ...rangeLines(state, startLine + 1, next), lastLine].join('\n').trim();
+  token.map = [startLine, state.line];
+  token.markup = '\\[';
+  return true;
+});
+
+// Equation numbering + \label registry: display equations in document order
+const isMathFence = (t) => t.type === 'fence' && (t.info || '').trim().split(/\s+/)[0].toLowerCase() === 'math';
+mdit.core.ruler.after('block', 'posemark_math_numbers', (state) => {
+  const eqs = state.tokens.filter((t) => t.type === 'math_block' || isMathFence(t));
+  const { numbers, labels } = numberEquations(eqs.map((t) => ({ tex: t.content })), ctx.config.mathNumbering || 'none');
+  eqs.forEach((t, i) => {
+    t.meta = { ...(t.meta || {}), number: numbers[i], labels: labelsOf(t.content) };
+  });
+  state.env.mathLabels = labels;
+});
+
+const mathBlockHtml = (token, env) => {
+  const number = (token.meta && token.meta.number) || 0;
+  const label = token.meta && token.meta.labels && token.meta.labels[0];
+  const id = label ? ` id="eq-${mdit.utils.escapeHtml(encodeURIComponent(label))}"` : '';
+  return `<div class="math-block"${id}${number ? ` data-eq="${number}"` : ''}>${renderMath(token.content, true, env, number)}</div>\n`;
+};
+mdit.renderer.rules.math_block = (tokens, idx, _o, env) => mathBlockHtml(tokens[idx], env);
 
 // ---------------------------------------------------------------------------
 // fenced code
 // ---------------------------------------------------------------------------
-mdit.renderer.rules.fence = (tokens, idx) => {
+mdit.renderer.rules.fence = (tokens, idx, _o, env) => {
   const token = tokens[idx];
   const info = (token.info || '').trim();
   const lang = info.split(/\s+/)[0].toLowerCase();
   if (isDiagramLang(lang)) {
-    return `<div class="mermaid" data-src="${mdit.utils.escapeHtml(token.content)}">${mdit.utils.escapeHtml(token.content)}</div>\n`;
+    // sequence / flow fences are translated to Mermaid; data-src carries what gets rendered
+    const src = diagramSource(lang, token.content) ?? token.content;
+    return `<div class="mermaid" data-lang="${mdit.utils.escapeHtml(lang)}" data-src="${mdit.utils.escapeHtml(src)}">${mdit.utils.escapeHtml(token.content)}</div>\n`;
   }
-  if (lang === 'math') {
-    return `<div class="math-block">${renderMath(token.content, true)}</div>\n`;
-  }
+  if (lang === 'math') return mathBlockHtml(token, env);
   const html = highlightCode(token.content, lang);
   const body = html === null ? mdit.utils.escapeHtml(token.content) : html;
   return `<pre class="code-block"${lang ? ` data-lang="${mdit.utils.escapeHtml(lang)}"` : ''}><code class="hljs${lang ? ` language-${mdit.utils.escapeHtml(lang)}` : ''}">${body}</code></pre>\n`;

@@ -6,6 +6,8 @@ import mermaid from 'mermaid';
 import { mdit } from './markdown.js';
 import { highlightCode, isDiagramLang } from './syntax.js';
 import { ctx, resolveSrc, parseImageTag } from './paths.js';
+import { diagramSource } from './diagrams.js';
+import { renderTex, prepareTex } from './math.js';
 
 export { highlightCode, isDiagramLang };
 export { ctx };
@@ -76,16 +78,22 @@ export function scanBlocks(doc) {
       const bodyFrom = doc.line(ln).to + 1;
       const bodyTo = end > ln ? doc.line(end).from - 1 : doc.line(ln).to;
       const body = end > ln ? doc.sliceString(bodyFrom, Math.max(bodyFrom, bodyTo)) : '';
-      blocks.push({
-        type: isDiagramLang(info) ? 'diagram' : 'code',
-        start: ln,
-        end,
-        from: doc.line(ln).from,
-        to: doc.line(end).to,
-        info,
-        body,
-        closed: end !== n || /^ {0,3}(`{3,}|~{3,})\s*$/.test(doc.line(n).text),
-      });
+      const lang = info.split(/\s+/)[0].toLowerCase();
+      if (lang === 'math') {
+        // ```math … ``` is a display equation, same as $$ … $$
+        blocks.push({ type: 'math', start: ln, end, from: doc.line(ln).from, to: doc.line(end).to, body: body.trim(), delim: 'fence', fence: mark });
+      } else {
+        blocks.push({
+          type: isDiagramLang(info) ? 'diagram' : 'code',
+          start: ln,
+          end,
+          from: doc.line(ln).from,
+          to: doc.line(end).to,
+          info,
+          body,
+          closed: end !== n || /^ {0,3}(`{3,}|~{3,})\s*$/.test(doc.line(n).text),
+        });
+      }
       ln = end + 1;
       continue;
     }
@@ -119,7 +127,35 @@ export function scanBlocks(doc) {
           from: doc.line(ln).from,
           to: doc.line(end).to,
           body: body.trim(),
+          delim: 'dollar',
         });
+        ln = end + 1;
+        continue;
+      }
+    }
+
+    // block math, LaTeX style: \[ ... \]
+    if (/^ {0,3}\\\[/.test(text)) {
+      const open = text.trim();
+      let end = 0;
+      let body = '';
+      if (open.length > 4 && /\\\]\s*$/.test(open.slice(2))) {
+        end = ln;
+        body = open.slice(2, open.lastIndexOf('\\]'));
+      } else {
+        for (let k = ln + 1; k <= n; k++) {
+          if (/\\\]\s*$/.test(doc.line(k).text)) {
+            end = k;
+            break;
+          }
+        }
+        if (end) {
+          body = doc.sliceString(doc.line(ln).to + 1, doc.line(end).from - 1);
+          if (end === ln + 1) body = '';
+        }
+      }
+      if (end) {
+        blocks.push({ type: 'math', start: ln, end, from: doc.line(ln).from, to: doc.line(end).to, body: body.trim(), delim: 'bracket' });
         ln = end + 1;
         continue;
       }
@@ -236,22 +272,32 @@ function wrapLines(html) {
     .join('\n');
 }
 
+// The source text a math block is written back as, for each of the three delimiters.
+export function wrapMath(block, tex) {
+  if (block && block.delim === 'bracket') return `\\[\n${tex}\n\\]`;
+  if (block && block.delim === 'fence') return `${block.fence || '```'}math\n${tex}\n${block.fence || '```'}`;
+  return `$$\n${tex}\n$$`;
+}
+
 export class MathBlockWidget extends WidgetType {
-  constructor(tex, block) {
+  constructor(tex, block, numbering = {}) {
     super();
     this.tex = tex;
     this.block = block;
+    this.number = numbering.number || 0;
+    this.prepared = prepareTex(tex, numbering);
   }
 
   eq(other) {
-    return other.tex === this.tex && other.block.from === this.block.from;
+    return other.prepared === this.prepared && other.block.from === this.block.from;
   }
 
   toDOM(view) {
     const div = document.createElement('div');
     div.className = 'md-block md-mathblock';
+    if (this.number) div.dataset.eq = String(this.number);
     try {
-      div.innerHTML = katex.renderToString(this.tex, { displayMode: true, throwOnError: false, output: 'html' });
+      div.innerHTML = renderTex(this.prepared, true);
     } catch (err) {
       div.textContent = String(err && err.message ? err.message : err);
       div.classList.add('error');
@@ -789,10 +835,11 @@ let diagramSeq = 0;
 let mathEditing = null;
 
 export class MathFieldWidget extends WidgetType {
-  constructor(tex, block) {
+  constructor(tex, block, numbering = {}) {
     super();
     this.tex = tex;
     this.block = block;
+    this.numbering = numbering;
     this.key = 'math:' + block.from;
   }
 
@@ -828,7 +875,7 @@ export class MathFieldWidget extends WidgetType {
     wrap.appendChild(input);
     wrap.appendChild(preview);
 
-    const state = { key: this.key, tex: this.tex, from: this.block.from, to: this.block.to, view, timer: 0 };
+    const state = { key: this.key, tex: this.tex, from: this.block.from, to: this.block.to, view, timer: 0, block: this.block, numbering: this.numbering };
     mathEditing = state;
 
     const renderPreview = () => {
@@ -839,11 +886,7 @@ export class MathFieldWidget extends WidgetType {
       }
       preview.classList.remove('empty');
       try {
-        preview.innerHTML = katex.renderToString(state.tex, {
-          displayMode: true,
-          throwOnError: false,
-          output: 'html',
-        });
+        preview.innerHTML = renderTex(prepareTex(state.tex, state.numbering), true);
       } catch (err) {
         preview.classList.add('error');
         preview.textContent = String(err && err.message ? err.message : err);
@@ -861,7 +904,7 @@ export class MathFieldWidget extends WidgetType {
         state.timer = 0;
       }
       const tex = state.tex.replace(/\s+$/, '');
-      const next = `$$\n${tex}\n$$`;
+      const next = wrapMath(state.block, tex);
       const doc = view.state.doc;
       const from = state.from;
       const to = Math.min(state.to, doc.length);
@@ -873,7 +916,7 @@ export class MathFieldWidget extends WidgetType {
     const exitField = () => {
       commit();
       const doc = view.state.doc;
-      const to = Math.min(state.from + `$$\n${state.tex.replace(/\s+$/, '')}\n$$`.length, doc.length);
+      const to = Math.min(state.from + wrapMath(state.block, state.tex.replace(/\s+$/, '')).length, doc.length);
       if (to >= doc.length) {
         view.dispatch({ changes: { from: to, insert: '\n' }, selection: { anchor: to + 1 }, scrollIntoView: true });
       } else {
@@ -932,14 +975,15 @@ function previewShell(className, label) {
 
 /** Rendered maths sitting under a $$ block while you type in it. */
 export class MathLivePreviewWidget extends WidgetType {
-  constructor(tex, block) {
+  constructor(tex, block, numbering = {}) {
     super();
     this.tex = tex;
     this.block = block;
+    this.prepared = prepareTex(tex, numbering);
   }
 
   eq(other) {
-    return other.tex === this.tex && other.block.from === this.block.from;
+    return other.prepared === this.prepared && other.block.from === this.block.from;
   }
 
   toDOM() {
@@ -950,7 +994,7 @@ export class MathLivePreviewWidget extends WidgetType {
       return wrap;
     }
     try {
-      body.innerHTML = katex.renderToString(this.tex, { displayMode: true, throwOnError: false, output: 'html' });
+      body.innerHTML = renderTex(this.prepared, true);
     } catch (err) {
       body.classList.add('error');
       body.textContent = String(err && err.message ? err.message : err);
@@ -982,7 +1026,7 @@ export class DiagramLivePreviewWidget extends WidgetType {
     // Re-render only after a pause: mermaid parsing is async and throws on
     // half-typed input, so keep the last good picture on screen meanwhile.
     clearTimeout(liveDiagramTimer);
-    const code = this.code;
+    const code = diagramSource(this.block.info, this.code) ?? this.code;
     liveDiagramTimer = setTimeout(() => {
       if (!body.isConnected) return;
       mermaid
@@ -1049,12 +1093,28 @@ export class ImageLivePreviewWidget extends WidgetType {
   }
 }
 
-mermaid.initialize({
-  startOnLoad: false,
-  securityLevel: 'loose',
-  theme: 'default',
-  fontFamily: 'inherit',
-});
+// Mermaid picks its look up from the theme's CSS variables first (`--mermaid-theme`,
+// `--mermaid-font-family`, `--mermaid-sequence-numbers`, `--mermaid-flowchart-curve`, the
+// names Typora uses), then from the preferences, then follows light / dark.
+export function mermaidConfig() {
+  const has = typeof document !== 'undefined' && document.body;
+  const cs = has ? getComputedStyle(document.body) : null;
+  const v = (name) => (cs ? cs.getPropertyValue(name).trim().replace(/^["']|["']$/g, '') : '');
+  const dark = has && document.body.classList.contains('theme-dark');
+  const pref = ctx.config.mermaidTheme || 'auto';
+  const theme = v('--mermaid-theme') || (pref !== 'auto' ? pref : dark ? 'dark' : 'default');
+  const fontFamily = v('--mermaid-font-family') || 'inherit';
+  const seq = v('--mermaid-sequence-numbers');
+  const showSequenceNumbers = seq ? /^(on|true|1|yes)$/i.test(seq) : ctx.config.mermaidSequenceNumbers === true;
+  const curve = v('--mermaid-flowchart-curve') || ctx.config.mermaidFlowchartCurve || 'basis';
+  return { startOnLoad: false, securityLevel: 'loose', theme, fontFamily, sequence: { showSequenceNumbers }, flowchart: { curve } };
+}
+
+export function configureMermaid() {
+  mermaid.initialize(mermaidConfig());
+}
+
+configureMermaid();
 
 export class DiagramWidget extends WidgetType {
   constructor(code, block) {
@@ -1081,7 +1141,7 @@ export class DiagramWidget extends WidgetType {
     div.appendChild(holder);
     bindClick(div, view, this.block.from + 3);
     mermaid
-      .render(this.id, this.code)
+      .render(this.id, diagramSource(this.block.info, this.code) ?? this.code)
       .then(({ svg }) => {
         holder.innerHTML = svg;
       })

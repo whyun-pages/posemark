@@ -32,7 +32,7 @@ Then drop the official `electron-v<version>-win32-x64.zip` (from
 ## Test and release
 
 ```bash
-pnpm test            # unit tests (node:test): Markdown renderer, paths, images, outline, word count, drafts, user themes
+pnpm test            # unit tests (node:test): Markdown renderer, paths, images, math, diagrams, outline, word count, drafts, user themes
 pnpm dist            # package an installer for the current OS into release/
 ```
 
@@ -135,7 +135,21 @@ Right-click anything in the file tree for new file / new folder / rename / trash
   `Ctrl/Cmd+Enter` leaves the field and drops the caret after the block.
 - ` ```mermaid ` blocks rendered as diagrams — same deal while editing: source on top, the diagram
   re-renders below after a short pause, and a syntax error shows up in the preview instead of
-  replacing your text
+  replacing your text. ` ```sequence ` (js-sequence-diagrams syntax) and ` ```flow ` (flowchart.js
+  syntax) blocks are translated to Mermaid and drawn the same way.
+- **Diagram look**: Mermaid follows the editor theme (dark themes get Mermaid's dark theme), and a
+  theme's CSS variables override it Typora-style — `--mermaid-theme`, `--mermaid-font-family`,
+  `--mermaid-sequence-numbers: on`, `--mermaid-flowchart-curve: linear` — with the same choices in
+  Preferences › Markdown › Diagrams. **Right-click a diagram** to save it as SVG or PNG, copy it as
+  a PNG, or copy the SVG code.
+- **Math extras**: `\(…\)` inline and `\[…\]` display delimiters and ` ```math ` fences work next
+  to `$…$` / `$$…$$`; mhchem (`\ce{H2O}`) is loaded, and a KaTeX-friendly subset of the `physics`
+  package (`\dv`, `\pdv`, `\abs`, `\norm`, `\bra`, `\ket`, `\braket`, `\expval`, `\vb`,
+  `\va`, `\grad`, `\curl`, …) is on by default.
+- **Equation numbering** (Preferences › Markdown › Math): none, AMS style (`equation` / `align` /
+  `gather` environments and anything with a `\label`), or every display equation. `\label{eq:x}`
+  plus `\eqref{eq:x}` / `\ref{eq:x}` — inside math or in the text — show the number (clickable in
+  the editor, an anchor link in the export).
 - Relative image paths resolved against the current document; the picture renders inline, and while
   you edit its `![]()` line the image shows underneath the source (with its alt text as caption,
   and a `missing: …` panel when the path does not resolve)
@@ -325,6 +339,8 @@ src/renderer/    renderer bundle
   syntax.js      highlight.js wrapper
   paths.js       path helpers: file:// resolution, typora-root-url, Markdown image paths, <img> parsing
   outline.js     outline tree / filter / current-heading helpers
+  math.js        KaTeX options (mhchem, physics macros), equation numbering, \label / \ref
+  diagrams.js    sequence (js-sequence) and flow (flowchart.js) → Mermaid translation
   wordcount.js   word count panel figures and reading time
   styles/        app.css, editor.css, content.css (export), themes/*.css
 samples/demo.md  a document that exercises everything
@@ -357,6 +373,5 @@ docs/            screenshots
 - Editing the *inside* of a rendered formula (picking a sub-expression in the KaTeX tree) — the field
   is whole-TeX, not structural. Tables, code, mermaid and images are all editable in place now.
 - Pandoc export (docx / EPUB / LaTeX), spell-check dictionaries beyond Chromium's.
-- Math auto-numbering and `\label`/`\ref`; `sequence` / `flow` diagram languages (only Mermaid).
 - Strict mode only relaxes headings; list indentation still follows GFM.
 - Tabs: one document per window, like Typora (`Ctrl+Tab` switches windows instead).

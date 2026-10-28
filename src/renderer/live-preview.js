@@ -26,6 +26,7 @@ import {
   ctx,
 } from './blocks.js';
 import { emojiFor } from './emoji.js';
+import { numberEquations, prepareTex, renderTex, TEXT_REF_RE, renderRefText } from './math.js';
 
 // ---------------------------------------------------------------------------
 // scan cache (Text values are immutable, so a WeakMap keyed on them is safe)
@@ -99,24 +100,58 @@ class FootnoteBadge extends WidgetType {
 }
 
 class InlineMathWidget extends WidgetType {
-  constructor(tex) {
+  constructor(tex, labels) {
     super();
     this.tex = tex;
+    this.prepared = prepareTex(tex, { labels });
   }
 
   eq(other) {
-    return other.tex === this.tex;
+    return other.prepared === this.prepared;
   }
 
   toDOM() {
     const span = document.createElement('span');
     span.className = 'md-math-inline';
     try {
-      span.innerHTML = katex.renderToString(this.tex, { throwOnError: false, output: 'html' });
+      span.innerHTML = renderTex(this.prepared, false);
     } catch {
       span.textContent = `$${this.tex}$`;
     }
     return span;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
+// `\eqref{label}` written in prose: the equation number, clickable
+class EqRefWidget extends WidgetType {
+  constructor(label, text, target) {
+    super();
+    this.label = label;
+    this.text = text;
+    this.target = target;
+  }
+
+  eq(other) {
+    return other.text === this.text && other.target === this.target;
+  }
+
+  toDOM(view) {
+    const a = document.createElement('span');
+    a.className = 'md-eqref';
+    a.textContent = this.text;
+    a.title = `equation ${this.label}`;
+    a.addEventListener('mousedown', (e) => e.stopPropagation());
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (this.target == null) return;
+      view.dispatch({ selection: { anchor: this.target }, effects: EditorView.scrollIntoView(this.target, { y: 'center' }) });
+      view.focus();
+    });
+    return a;
   }
 
   ignoreEvent() {
@@ -254,6 +289,16 @@ function buildInner(state) {
   const { blocks, headings } = scan(doc);
   const replaced = [];
 
+  // equation numbers (none / AMS / all) and the \label → number map, document wide
+  const mathBlocks = blocks.filter((b) => b.type === 'math');
+  const numbering = numberEquations(mathBlocks.map((b) => ({ tex: b.body })), ctx.config.mathNumbering || 'none');
+  mathBlocks.forEach((b, i) => (b.number = numbering.numbers[i]));
+  const eqLabels = numbering.labels;
+  const eqTarget = (label) => {
+    const b = mathBlocks.find((x) => x.body.includes(`\\label{${label}}`));
+    return b ? b.from : null;
+  };
+
   const insideReplaced = (pos) => replaced.some(([f, t]) => pos > f && pos < t);
 
   const pushReplace = (from, to, deco) => {
@@ -286,7 +331,7 @@ function buildInner(state) {
     }
     if (isActive && b.type === 'math') {
       // a $$ block opens as a field with the formula rendered underneath
-      pushReplace(b.from, b.to, Decoration.replace({ widget: new MathFieldWidget(b.body, b), block: true }));
+      pushReplace(b.from, b.to, Decoration.replace({ widget: new MathFieldWidget(b.body, b, { number: b.number, labels: eqLabels }), block: true }));
       continue;
     }
     if (isActive) {
@@ -302,7 +347,7 @@ function buildInner(state) {
     let widget = null;
     switch (b.type) {
       case 'code': widget = new CodeBlockWidget(b.body, b.info, b); break;
-      case 'math': widget = new MathBlockWidget(b.body, b); break;
+      case 'math': widget = new MathBlockWidget(b.body, b, { number: b.number, labels: eqLabels }); break;
       case 'table': widget = new TableWidget(b.body, b); break;
       case 'toc': widget = new TocWidget(b); break;
       case 'diagram': widget = new DiagramWidget(b.body, b); break;
@@ -579,7 +624,30 @@ function buildInner(state) {
         const from = line.from + mm.index + mm[1].length;
         const to = from + mm[0].length - mm[1].length;
         if (inCode(from) || insideReplaced(from)) continue;
-        pushReplace(from, to, Decoration.replace({ widget: new InlineMathWidget(mm[2]) }));
+        pushReplace(from, to, Decoration.replace({ widget: new InlineMathWidget(mm[2], eqLabels) }));
+      }
+    }
+    // LaTeX-style inline math \( … \)
+    if (ctx.config.inlineMath !== false && !lazy && line.text.includes('\\(')) {
+      const re = /\\\((.+?)\\\)/g;
+      let mm;
+      while ((mm = re.exec(line.text))) {
+        const from = line.from + mm.index;
+        const to = from + mm[0].length;
+        if (inCode(from) || insideReplaced(from)) continue;
+        pushReplace(from, to, Decoration.replace({ widget: new InlineMathWidget(mm[1], eqLabels) }));
+      }
+    }
+    // \eqref{x} / \ref{x} in prose
+    if (!lazy && line.text.includes('ref{')) {
+      TEXT_REF_RE.lastIndex = 0;
+      let rm;
+      while ((rm = TEXT_REF_RE.exec(line.text))) {
+        const from = line.from + rm.index;
+        const to = from + rm[0].length;
+        if (inCode(from) || insideReplaced(from)) continue;
+        const label = rm[2].trim();
+        pushReplace(from, to, Decoration.replace({ widget: new EqRefWidget(label, renderRefText(eqLabels, label), eqTarget(label)) }));
       }
     }
 

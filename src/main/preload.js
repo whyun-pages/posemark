@@ -52,6 +52,8 @@ contextBridge.exposeInMainWorld('ink', {
   uploadTest: (options) => ipcRenderer.invoke('image:uploadTest', options),
   copyImageToClipboard: (p) => ipcRenderer.invoke('image:copyToClipboard', p),
   mediaKind: (name) => ipcRenderer.invoke('image:kind', name),
+  saveDiagram: (payload) => ipcRenderer.invoke('diagram:save', payload),
+  clipboardWriteDataUrl: (url) => ipcRenderer.invoke('app:clipboardWriteDataUrl', url),
   getConfig: () => ipcRenderer.invoke('config:get'),
   setConfig: (p) => ipcRenderer.invoke('config:set', p),
   setState: (s) => ipcRenderer.invoke('state:set', s),

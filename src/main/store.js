@@ -68,6 +68,13 @@ const DEFAULTS = {
   imagePicgoPath: 'picgo',
   imagePiclistUrl: 'http://127.0.0.1:36677',
   imageUploadCommand: '',
+  // math: equation numbering 'none' | 'ams' | 'all'; physics-package macros
+  mathNumbering: 'none',
+  mathPhysics: true,
+  // mermaid: 'auto' follows the editor theme; a theme's --mermaid-* CSS variables win
+  mermaidTheme: 'auto',
+  mermaidSequenceNumbers: false,
+  mermaidFlowchartCurve: 'basis',
   recentFiles: [],
   recentFolders: [],
   pinnedFolders: [],

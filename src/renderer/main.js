@@ -32,7 +32,7 @@ import {
   ctx,
 } from './editor.js';
 import { refreshLivePreview } from './live-preview.js';
-import { scanBlocks, headingOf, retargetedImageSource, writeImageWidth } from './blocks.js';
+import { scanBlocks, headingOf, retargetedImageSource, writeImageWidth, configureMermaid } from './blocks.js';
 import { htmlToMarkdown, htmlLooksPlain } from './html2md.js';
 import { renderFragment, buildStandaloneHtml, splitFrontMatter, slugify } from './markdown.js';
 import { buildWeChatFragment } from './wechat.js';
@@ -156,6 +156,9 @@ async function renderTheme(forceId) {
   document.body.classList.toggle('theme-dark', !!theme.dark);
   document.body.dataset.theme = theme.id;
   S.themeId = theme.id;
+  // diagrams follow the theme (and the theme's --mermaid-* variables)
+  configureMermaid();
+  if (S.view) refreshLivePreview(S.view);
 }
 
 // ---------------------------------------------------------------------------
@@ -1819,6 +1822,39 @@ const PREF_SECTIONS = [
           { key: 'codeWrap', label: 'Wrap long code lines', type: 'bool' },
         ],
       },
+      {
+        title: 'Math',
+        fields: [
+          {
+            key: 'mathNumbering',
+            label: 'Equation numbering',
+            type: 'select',
+            hint: 'AMS: equation / align / gather environments and anything with a \\label; \\ref{} and \\eqref{} show the number',
+            options: [['none', 'None'], ['ams', 'AMS style'], ['all', 'Every display equation']],
+          },
+          { key: 'mathPhysics', label: 'physics-package macros', type: 'bool', hint: '\\dv \\pdv \\abs \\norm \\bra \\ket \\braket \\expval \\vb \\va \\grad \\curl … (mhchem \\ce{} is always on)' },
+        ],
+      },
+      {
+        title: 'Diagrams',
+        fields: [
+          {
+            key: 'mermaidTheme',
+            label: 'Mermaid theme',
+            type: 'select',
+            hint: 'Auto follows the editor theme; a --mermaid-theme CSS variable in a theme wins over this',
+            options: [['auto', 'Follow the editor theme'], ['default', 'Default'], ['neutral', 'Neutral'], ['dark', 'Dark'], ['forest', 'Forest'], ['base', 'Base']],
+          },
+          { key: 'mermaidSequenceNumbers', label: 'Number sequence diagram messages', type: 'bool', hint: 'CSS: --mermaid-sequence-numbers: on' },
+          {
+            key: 'mermaidFlowchartCurve',
+            label: 'Flowchart line style',
+            type: 'select',
+            hint: 'CSS: --mermaid-flowchart-curve; --mermaid-font-family sets the diagram font',
+            options: [['basis', 'Curved (basis)'], ['linear', 'Straight'], ['natural', 'Natural'], ['step', 'Stepped'], ['monotoneX', 'Monotone'], ['cardinal', 'Cardinal']],
+          },
+        ],
+      },
     ],
   },
   {
@@ -2084,7 +2120,8 @@ async function setPref(key, value) {
   applyRuntimeConfig();
 }
 
-const PREVIEW_KEYS = ['emoji', 'githubAlerts', 'strictMode', 'inlineMath', 'lineNumbersInCode', 'codeWrap'];
+const PREVIEW_KEYS = ['emoji', 'githubAlerts', 'strictMode', 'inlineMath', 'lineNumbersInCode', 'codeWrap', 'mathNumbering', 'mathPhysics', 'mermaidTheme', 'mermaidSequenceNumbers', 'mermaidFlowchartCurve'];
+const MERMAID_KEYS = ['mermaidTheme', 'mermaidSequenceNumbers', 'mermaidFlowchartCurve'];
 const TREE_KEYS = ['treeSort', 'treeSortDesc', 'treeShowHidden', 'treeShowAllFiles'];
 const THEME_KEYS = ['theme', 'themeDark', 'themeFollowSystem'];
 let appliedConfig = null;
@@ -2102,6 +2139,12 @@ function applyRuntimeConfig() {
   ctx.config.strictMode = S.config.strictMode !== false;
   ctx.config.preserveLineBreaks = S.config.preserveLineBreaks === true;
   ctx.config.indentSize = S.config.indentSize || 4;
+  ctx.config.mathNumbering = S.config.mathNumbering || 'none';
+  ctx.config.mathPhysics = S.config.mathPhysics !== false;
+  ctx.config.mermaidTheme = S.config.mermaidTheme || 'auto';
+  ctx.config.mermaidSequenceNumbers = S.config.mermaidSequenceNumbers === true;
+  ctx.config.mermaidFlowchartCurve = S.config.mermaidFlowchartCurve || 'basis';
+  if (!appliedConfig || MERMAID_KEYS.some((k) => appliedConfig[k] !== S.config[k])) configureMermaid();
   if (appliedConfig && S.view) {
     if (PREVIEW_KEYS.some((k) => appliedConfig[k] !== S.config[k])) {
       refreshLivePreview(S.view);
@@ -2771,13 +2814,78 @@ function wireImageMenu() {
     'contextmenu',
     (e) => {
       const span = e.target.closest('.md-inline-image');
-      if (!span) return;
+      const diagram = span ? null : e.target.closest('.md-diagram, .md-live-diagram');
+      if (!span && !diagram) return;
       e.preventDefault();
       e.stopPropagation();
-      openCtxMenu(e.clientX, e.clientY, imageMenuItems(span));
+      openCtxMenu(e.clientX, e.clientY, span ? imageMenuItems(span) : diagramMenuItems(diagram));
     },
     true,
   );
+}
+
+// ---------------------------------------------------------------------------
+// diagrams: save as SVG / PNG, copy
+// ---------------------------------------------------------------------------
+function diagramSvgText(svgEl) {
+  const clone = svgEl.cloneNode(true);
+  clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  if (!clone.getAttribute('xmlns:xlink')) clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+  const box = svgEl.getBoundingClientRect();
+  if (!clone.getAttribute('width') || /%$/.test(clone.getAttribute('width'))) clone.setAttribute('width', String(Math.ceil(box.width)));
+  if (!clone.getAttribute('height') || /%$/.test(clone.getAttribute('height'))) clone.setAttribute('height', String(Math.ceil(box.height)));
+  clone.style.maxWidth = '';
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}`;
+}
+
+// The same offscreen rasteriser the WeChat copy uses: a PNG data URL of the diagram.
+async function diagramPng(svgEl) {
+  const svg = diagramSvgText(svgEl);
+  const box = svgEl.getBoundingClientRect();
+  const bg = document.body.classList.contains('theme-dark') ? getComputedStyle(document.body).backgroundColor : '#ffffff';
+  const html = `<div data-wx="0" style="display:inline-block;padding:12px;background:${bg}">${svg}</div>`;
+  const shots = await window.ink.rasterize({ html, css: `body{background:${bg}}`, width: Math.ceil(box.width) + 48 });
+  return shots && shots[0] ? shots[0].url : null;
+}
+
+function diagramMenuItems(el) {
+  const svgEl = el.querySelector('svg');
+  const stem = (S.path ? basename(S.path).replace(/\.[^.]+$/, '') : 'diagram') + '-diagram';
+  const items = [];
+  if (!svgEl) return [{ label: 'Diagram is not rendered yet', run: () => {} }];
+  items.push({
+    label: 'Save as SVG…',
+    run: async () => {
+      const saved = await window.ink.saveDiagram({ kind: 'svg', data: diagramSvgText(svgEl), defaultName: `${stem}.svg` });
+      if (saved) flashMessage(`Saved ${basename(saved)}`);
+    },
+  });
+  items.push({
+    label: 'Save as PNG…',
+    run: async () => {
+      const url = await diagramPng(svgEl);
+      if (!url) return flashMessage('Could not rasterise the diagram');
+      const saved = await window.ink.saveDiagram({ kind: 'png', data: url, defaultName: `${stem}.png` });
+      if (saved) flashMessage(`Saved ${basename(saved)}`);
+    },
+  });
+  items.push({
+    label: 'Copy as PNG',
+    run: async () => {
+      const url = await diagramPng(svgEl);
+      if (!url) return flashMessage('Could not rasterise the diagram');
+      await window.ink.clipboardWriteDataUrl(url);
+      flashMessage('Diagram copied as an image');
+    },
+  });
+  items.push({
+    label: 'Copy SVG Code',
+    run: async () => {
+      await window.ink.clipboardWrite(diagramSvgText(svgEl));
+      flashMessage('SVG copied');
+    },
+  });
+  return items;
 }
 
 // Drop `snippet` in on its own paragraph, where the caret is.
@@ -3201,6 +3309,18 @@ async function boot() {
     imageDest: () => imageDest(),
     mdPath: (p) => mdPath(p),
     docMeta: () => ({ ...S.docMeta, rootUrl: ctx.rootUrl }),
+    diagramMenu: (index) => {
+      const els = [...document.querySelectorAll('.md-diagram, .md-live-diagram')];
+      return els[index] ? diagramMenuItems(els[index]).map((it) => it.label) : null;
+    },
+    diagramPng: async (index) => {
+      const svg = [...document.querySelectorAll('.md-diagram svg')][index];
+      return svg ? (await diagramPng(svg)).slice(0, 40) : null;
+    },
+    diagramSvg: (index) => {
+      const svg = [...document.querySelectorAll('.md-diagram svg')][index];
+      return svg ? diagramSvgText(svg).length : null;
+    },
     imageMenu: (index) => {
       const spans = [...document.querySelectorAll('.md-inline-image')];
       return spans[index] ? imageMenuItems(spans[index]).map((it) => (it === '-' ? '-' : it.label)) : null;

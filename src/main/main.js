@@ -1068,6 +1068,24 @@ function registerIpc() {
   });
   ipcMain.handle('image:kind', (_e, name) => (images.isImageName(name) ? 'image' : images.isMediaName(name) ? 'media' : null));
 
+  // diagrams rendered in the editor: save the SVG text or a PNG data URL
+  ipcMain.handle('diagram:save', async (e, { kind, data, defaultName }) => {
+    const res = await dialog.showSaveDialog(winFor(e), {
+      defaultPath: path.join(cfg('lastFolder') || app.getPath('pictures'), defaultName || `diagram.${kind}`),
+      filters: kind === 'png' ? [{ name: 'PNG image', extensions: ['png'] }] : [{ name: 'SVG image', extensions: ['svg'] }],
+    });
+    if (res.canceled || !res.filePath) return null;
+    if (kind === 'png') await fsp.writeFile(res.filePath, nativeImage.createFromDataURL(data).toPNG());
+    else await fsp.writeFile(res.filePath, data, 'utf8');
+    return res.filePath;
+  });
+  ipcMain.handle('app:clipboardWriteDataUrl', (_e, url) => {
+    const img = nativeImage.createFromDataURL(url);
+    if (img.isEmpty()) return false;
+    clipboard.writeImage(img);
+    return true;
+  });
+
   ipcMain.handle('dialog:openImage', async (e, startDir) => {
     const res = await dialog.showOpenDialog(winFor(e), {
       properties: ['openFile'],
