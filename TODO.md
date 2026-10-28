@@ -3,19 +3,6 @@
 Compared against the Typora documentation (https://support.typora.io/). Done items are
 tracked in `README.md`; this file lists what is still missing, in the suggested order.
 
-## Batch 2 — workspace
-
-- [ ] Launch behaviour: new file / restore last folder / restore last file and folder / open a fixed folder
-- [ ] Unsaved-draft backup and a "Recover Unsaved Drafts" entry
-- [ ] Multiple windows (`Ctrl+Shift+N`), `Ctrl+Tab` between open documents, reopen closed file (`Ctrl+Shift+T`)
-- [ ] Follow the system dark mode: one theme for light, one for dark
-- [ ] Custom CSS overrides (`base.user.css`, `{theme}.user.css`) with an "Open Theme Folder" button
-- [ ] Sidebar "file list" (articles) mode next to the tree
-- [ ] File tree: drag and drop to move, duplicate file, undo last file operation, keyboard navigation
-- [ ] Pin folders in Open Recent / Quick Open; option to stop recording recent files
-- [ ] Word count panel: lines, characters, reading time (configurable speed), selection counts
-- [ ] Outline panel: keyword filter, flat / collapsible view, highlight current heading
-
 ## Batch 3 — export
 
 - [ ] HTML (without styles), export as PNG image

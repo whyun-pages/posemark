@@ -1,10 +1,22 @@
 'use strict';
 const { Menu, app, shell } = require('electron');
+const path = require('path');
 
 const isMac = process.platform === 'darwin';
 
 function buildMenu(opts) {
-  const { onCommand, themes, currentTheme, recentFiles = [], recentFolders = [], isDev, hasFile } = opts;
+  const {
+    onCommand,
+    onWindow,
+    themes,
+    currentTheme,
+    recentFiles = [],
+    recentFolders = [],
+    pinnedFolders = [],
+    closedFiles = [],
+    windows = [],
+    isDev,
+  } = opts;
   const cmd = (id) => () => onCommand(id);
   const item = (label, id, accelerator, extra = {}) => ({
     label,
@@ -13,15 +25,28 @@ function buildMenu(opts) {
     ...extra,
   });
 
+  // pinned folders stay at the top of Open Recent, then recent folders, then recent files
+  const pinned = new Set(pinnedFolders);
   const recentItems = [
-    ...recentFolders.slice(0, 8).map((p) => ({
-      label: p,
-      sublabel: 'Folder',
+    ...pinnedFolders.map((p) => ({
+      label: `📌 ${path.basename(p) || p}`,
+      sublabel: p,
+      toolTip: p,
       click: () => onCommand('file:openFolderPath', p),
     })),
+    ...(pinnedFolders.length ? [{ type: 'separator' }] : []),
+    ...recentFolders
+      .filter((p) => !pinned.has(p))
+      .slice(0, 8)
+      .map((p) => ({
+        label: p,
+        sublabel: 'Folder',
+        click: () => onCommand('file:openFolderPath', p),
+      })),
     ...recentFiles.slice(0, 12).map((p) => ({
-      label: require('path').basename(p),
+      label: path.basename(p),
       sublabel: p,
+      toolTip: p,
       click: () => onCommand('file:openPath', p),
     })),
   ];
@@ -33,12 +58,15 @@ function buildMenu(opts) {
       label: '&File',
       submenu: [
         item('New', 'file:new', 'CmdOrCtrl+N'),
+        item('New Window', 'window:new', 'CmdOrCtrl+Shift+N'),
         item('Open…', 'file:open', 'CmdOrCtrl+O'),
         item('Open Folder…', 'file:openFolder', 'CmdOrCtrl+Shift+O'),
         item('Open Recent', 'file:recent', undefined, { submenu: recentItems.length ? recentItems : [{ label: 'Empty', enabled: false }] }),
+        item('Reopen Closed File', 'file:reopenClosed', 'CmdOrCtrl+Shift+T', { enabled: closedFiles.length > 0 }),
         { type: 'separator' },
         item('Save', 'file:save', 'CmdOrCtrl+S', { enabled: true }),
         item('Save As…', 'file:saveAs', 'CmdOrCtrl+Shift+S'),
+        item('Recover Unsaved Drafts…', 'file:recoverDrafts'),
         { type: 'separator' },
         {
           label: 'Export',
@@ -143,6 +171,7 @@ function buildMenu(opts) {
         item('Outline', 'view:outline', 'CmdOrCtrl+Shift+1'),
         item('Search', 'view:search', 'CmdOrCtrl+Shift+2'),
         item('File Tree', 'view:files', 'CmdOrCtrl+Shift+3'),
+        item('File List', 'view:filesList', 'CmdOrCtrl+Shift+4'),
         item('Word Count', 'view:wordCount', 'CmdOrCtrl+Shift+W'),
         item('Status Bar', 'view:statusBar'),
         { type: 'separator' },
@@ -159,12 +188,33 @@ function buildMenu(opts) {
     },
     {
       label: '&Themes',
-      submenu: themes.map((t) => ({
-        label: t.name,
-        type: 'radio',
-        checked: currentTheme === t.id,
-        click: () => onCommand('theme:set', t.id),
-      })),
+      submenu: [
+        ...themes.map((t) => ({
+          label: t.user ? `${t.name} (user)` : t.name,
+          type: 'radio',
+          checked: currentTheme === t.id,
+          click: () => onCommand('theme:set', t.id),
+        })),
+        { type: 'separator' },
+        item('Open Theme Folder', 'theme:openFolder'),
+      ],
+    },
+    {
+      label: '&Window',
+      submenu: [
+        item('Next Document', 'window:next', 'Ctrl+Tab'),
+        item('Previous Document', 'window:prev', 'Ctrl+Shift+Tab'),
+        { type: 'separator' },
+        { role: 'minimize' },
+        ...(isMac ? [{ role: 'zoom' }, { role: 'front' }] : []),
+        ...(windows.length ? [{ type: 'separator' }] : []),
+        ...windows.map((w) => ({
+          label: w.title,
+          type: 'checkbox',
+          checked: !!w.focused,
+          click: () => onWindow(w.id),
+        })),
+      ],
     },
     {
       label: '&Help',

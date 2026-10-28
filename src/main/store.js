@@ -5,6 +5,14 @@ const path = require('path');
 
 const DEFAULTS = {
   theme: 'default',
+  // follow the OS dark mode: `theme` is used in light mode, `themeDark` in dark mode
+  themeFollowSystem: false,
+  themeDark: 'night',
+  // what a fresh launch opens: 'new' | 'folder' (last folder) | 'file' (last file + folder) | 'fixed'
+  launchAction: 'folder',
+  launchFolder: '',
+  recordRecent: true,
+  readingSpeed: 275,
   fontSize: 16,
   lineWidth: 760,
   autoSave: false,
@@ -52,10 +60,15 @@ const DEFAULTS = {
   wechatLinkRefs: true,
   recentFiles: [],
   recentFolders: [],
+  pinnedFolders: [],
+  closedFiles: [],
   lastFolder: null,
-  openTabs: [],
   activeFile: null,
   windowBounds: null,
+  // sidebar › Files: 'tree' or 'list' (every file under the folder, newest first)
+  filesView: 'tree',
+  // outline panel: flat list instead of a collapsible tree
+  outlineFlat: false,
   outlineCollapsed: {},
 };
 

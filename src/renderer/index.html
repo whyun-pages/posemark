@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="styles/app.css" />
   <link rel="stylesheet" href="styles/editor.css" />
   <link rel="stylesheet" id="theme-css" href="styles/themes/default.css" />
+  <style id="user-css"></style>
 </head>
 <body>
   <div id="titlebar">
@@ -38,12 +39,18 @@
       <div class="side-panel" id="panel-files">
         <div class="folder-bar">
           <span id="folder-name" title="No folder opened">No folder opened</span>
+          <button class="mini-btn" id="btn-files-view" title="Switch between tree and file list" hidden>☰</button>
           <button class="mini-btn" id="btn-tree-menu" title="Sort and filter" hidden>⋯</button>
           <button class="mini-btn" id="btn-open-folder" title="Open folder">+</button>
         </div>
-        <div id="filetree" class="filetree"></div>
+        <div id="filetree" class="filetree" tabindex="0"></div>
+        <div id="filelist" class="filelist" tabindex="0" hidden></div>
       </div>
       <div class="side-panel" id="panel-outline" hidden>
+        <div class="outline-bar">
+          <input id="outline-filter" type="text" placeholder="Filter headings…" autocomplete="off" spellcheck="false" />
+          <button class="mini-btn" id="btn-outline-flat" title="Flat list / collapsible tree">☰</button>
+        </div>
         <div id="outline" class="outline"></div>
       </div>
       <div class="side-panel" id="panel-search" hidden>
@@ -67,13 +74,15 @@
         <div id="editor"></div>
       </div>
       <div id="statusbar">
-        <span id="stat-words">0 words</span>
+        <button id="stat-words" class="stat-btn" title="Word count (Ctrl+Shift+W)">0 words</button>
         <span class="dot">·</span>
         <span id="stat-chars">0 characters</span>
+        <span id="stat-sel" class="stat-muted" hidden></span>
         <span class="grow"></span>
         <span id="stat-mode" class="stat-muted"></span>
         <span id="stat-cursor" class="stat-muted"></span>
       </div>
+      <div id="wordcount" class="wordcount" hidden></div>
     </main>
   </div>
 
@@ -87,6 +96,20 @@
   <div id="goto-line" class="modal" hidden>
     <div class="modal-box small">
       <input id="goto-line-input" type="text" placeholder="Go to line…" autocomplete="off" />
+    </div>
+  </div>
+
+  <div id="drafts" class="modal" hidden>
+    <div class="modal-box drafts">
+      <div class="drafts-header">
+        <h2>Unsaved drafts</h2>
+        <button class="mini-btn" id="drafts-close">×</button>
+      </div>
+      <div id="drafts-list" class="drafts-list"></div>
+      <div class="drafts-footer">
+        <span>Backups of documents that were still unsaved when Posemark last closed</span>
+        <button class="pref-btn" id="drafts-discard-all">Discard All</button>
+      </div>
     </div>
   </div>
 

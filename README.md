@@ -32,7 +32,7 @@ Then drop the official `electron-v<version>-win32-x64.zip` (from
 ## Test and release
 
 ```bash
-pnpm test            # unit tests (node:test) for the Markdown renderer and path helpers
+pnpm test            # unit tests (node:test): Markdown renderer, path helpers, outline, word count, drafts, user themes
 pnpm dist            # package an installer for the current OS into release/
 ```
 
@@ -183,10 +183,33 @@ Right-click anything in the file tree for new file / new folder / rename / trash
 - **File tree operations**: right-click a row (or the sidebar background) for New File, New Folder,
   Rename (`F2`), Move to Trash (`Del`, goes to the recycle bin), Reveal in File Explorer, Copy Path.
   Renaming is inline, keeps the extension, refuses to overwrite, and follows the open document
-- Outline panel built from headings, click to jump
+- **Drag and drop in the file tree** moves a file or folder into another folder (never
+  overwrites); **Duplicate** (`Ctrl+D`) makes `name copy.md`; **Undo Last File Operation**
+  (`Ctrl+Z` with the tree focused, or the right-click menu) reverses the last rename, move,
+  duplicate or new file; arrow keys / `Enter` / `Home` / `End` walk the tree, `→` / `←` expand
+  and collapse folders
+- **File list mode** (the `☰` button, `Ctrl+Shift+4`, or Preferences › Appearance › Sidebar):
+  every note under the folder in one flat list, newest first, with its subfolder and date
+- **Pinned folders**: pin the open folder from the `⋯` menu and it stays at the top of
+  `File › Open Recent` and of Quick Open (`Ctrl+P`, which also lists recent files from outside the
+  folder). Preferences › General can stop recording recent files and folders altogether.
+- **Outline panel**: headings nest and collapse (the fold state is remembered per file), a filter
+  box narrows the list with the matches highlighted, the `☰` button flattens it, and the heading
+  the caret is under is marked and kept in view
 - Find / replace (`Ctrl+F`, `Ctrl+H`) with regex / case / whole-word, jump to line (`Ctrl+G`)
-- Word-character count and caret position in the status bar
+- **Word count**: the status bar shows words and characters (plus "n words selected"); click it or
+  press `Ctrl+Shift+W` for the panel with characters with/without spaces, lines, paragraphs and
+  reading time (speed configurable in Preferences), for the document and for the selection
 - Auto save, dirty indicator, save-on-open-another prompt
+- **Unsaved-draft backup**: a dirty document is mirrored into the app's `drafts/` folder a moment
+  after every edit and dropped once saved, so a crash or a forced shutdown loses nothing;
+  `File › Recover Unsaved Drafts…` (also Preferences › General) lists what was left behind with a
+  preview, and restores it into the window or discards it
+- **Multiple windows**: `Ctrl+Shift+N` opens another window (one document per window, like
+  Typora), `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle through them, the Window menu lists them, and a
+  second launch with a file opens it in a new window. `Ctrl+Shift+T` reopens the last closed file.
+- **Launch behaviour** (Preferences › General › Startup): start with a new document, restore the
+  last folder, restore the last file and folder, or always open a fixed folder
 - Focus mode, typewriter mode, zoom, fullscreen, always on top
 
 **Output**
@@ -231,6 +254,14 @@ scroll less gracefully. Nothing that needs remote hosting (image uploads, 图床
 **Themes**: Default, Night, Pixyll, Whitey, Newsprint — plain CSS variable files, drop your own in
 `src/renderer/styles/themes/`.
 
+- **Follow the system dark mode** (Preferences › Appearance): pick one theme for light and one for
+  dark and the editor switches with the OS; the Themes menu then changes whichever slot is active.
+- **Custom CSS** without touching the app: `Themes › Open Theme Folder` (or the button in
+  Preferences) opens the user theme folder, Typora-style. `base.user.css` is appended to every
+  theme, `<theme>.user.css` to that theme, and a whole `<name>.css` shows up in the Themes menu as
+  a theme of its own (start it with `/* dark */` to mark it dark). Exports pick the overrides up
+  too. Edits apply when the theme is re-selected or the window is reloaded.
+
 ## Verifying without clicking
 
 The main process has three verification modes (they are dev-only flags, not user features):
@@ -258,8 +289,10 @@ keystrokes into the editor (that is how the smart-typography input handler is ve
 ## Layout
 
 ```
-src/main/        main process: window, menu, IPC, config store, PDF pipeline
+src/main/        main process: windows, menu, IPC, config store, PDF pipeline
 src/main/menu.js application menu (the Typora-like menu tree)
+src/main/drafts.js      unsaved-draft backups under userData/drafts
+src/main/user-themes.js user theme folder (base.user.css, <theme>.user.css, whole themes)
 src/renderer/    renderer bundle
   main.js        app shell: files, sidebar, outline, status bar, command dispatch, export
   editor.js      CodeMirror 6 setup + paragraph/format commands
@@ -269,6 +302,8 @@ src/renderer/    renderer bundle
   wechat.js      copy-for-WeChat: inline style profile + rasteriser for maths and diagrams
   syntax.js      highlight.js wrapper
   paths.js       relative-path → file:// resolution
+  outline.js     outline tree / filter / current-heading helpers
+  wordcount.js   word count panel figures and reading time
   styles/        app.css, editor.css, content.css (export), themes/*.css
 samples/demo.md  a document that exercises everything
 docs/            screenshots
@@ -279,6 +314,7 @@ docs/            screenshots
 | Action | Keys |
 | --- | --- |
 | New / Open / Save / Save As | `Ctrl+N` / `Ctrl+O` / `Ctrl+S` / `Ctrl+Shift+S` |
+| New window / Next, previous window / Reopen closed file | `Ctrl+Shift+N` / `Ctrl+Tab`, `Ctrl+Shift+Tab` / `Ctrl+Shift+T` |
 | Quick open | `Ctrl+P` |
 | Find / Replace | `Ctrl+F` / `Ctrl+H` |
 | Source code mode | `Ctrl+/` |
@@ -287,11 +323,12 @@ docs/            screenshots
 | Bold / Italic / Code / Strike / Highlight | `Ctrl+B` / `Ctrl+I` / `Ctrl+Shift+\`` / `Alt+Shift+5` / `Ctrl+Shift+H` |
 | Insert link / image | `Ctrl+K` / `Ctrl+Shift+I` |
 | Table / Code fence / Math block | `Ctrl+T` / — / `Ctrl+Shift+M` |
-| Sidebar / Outline / Search / Files | `Ctrl+Shift+L` / `Ctrl+Shift+1` / `Ctrl+Shift+2` / `Ctrl+Shift+3` |
+| Sidebar / Outline / Search / Files / File list | `Ctrl+Shift+L` / `Ctrl+Shift+1` / `Ctrl+Shift+2` / `Ctrl+Shift+3` / `Ctrl+Shift+4` |
+| Word count panel | `Ctrl+Shift+W` |
 | Find in folder / Paste as plain text | `Ctrl+Shift+F` / `Ctrl+Shift+V` |
 | Export PDF / Print | `Ctrl+P` |
 | Copy for WeChat | `Ctrl+Alt+C` |
-| Rename / Move to trash (file tree) | `F2` / `Del` |
+| Rename / Duplicate / Move to trash / Undo file operation (file tree) | `F2` / `Ctrl+D` / `Del` / `Ctrl+Z` |
 
 ## Not implemented (and why it shows)
 
@@ -300,4 +337,4 @@ docs/            screenshots
 - Pandoc export (docx / EPUB / LaTeX), image uploaders, spell-check dictionaries beyond Chromium's.
 - Math auto-numbering and `\label`/`\ref`; `sequence` / `flow` diagram languages (only Mermaid).
 - Strict mode only relaxes headings; list indentation still follows GFM.
-- Multiple windows or tabs: one document per window, like Typora.
+- Tabs: one document per window, like Typora (`Ctrl+Tab` switches windows instead).
