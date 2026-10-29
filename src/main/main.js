@@ -11,15 +11,27 @@ const { buildMenu } = require('./menu');
 const { Drafts, draftId } = require('./drafts');
 const { UserThemes } = require('./user-themes');
 const images = require('./images');
+const { setPdfInfo } = require('./pdf-info');
+const i18n = require('./i18n');
 
 const MD_EXT = ['md', 'markdown', 'mmd', 'mdown', 'mkd', 'mdwn', 'mdtxt', 'mdtext', 'txt', 'text', 'rmd'];
 const isDev = !!process.env.POSEMARK_DEV;
+// Window / taskbar icon while running from source (packaged builds take it from the executable).
+const DEV_ICON = path.join(__dirname, '../../build/icon.png');
+const windowIcon = fs.existsSync(DEV_ICON) ? DEV_ICON : undefined;
 
 let store = null;
 let drafts = null;
 let userThemes = null;
 
 const cfg = (key) => store.get(key);
+
+// UI language: the preference, or the OS language for 'system'.
+let tr = i18n.createTranslator('en');
+const uiLanguage = () => i18n.resolveLanguage(cfg('language'), app.getPreferredSystemLanguages ? app.getPreferredSystemLanguages() : [app.getLocale()]);
+function refreshLanguage() {
+  tr = i18n.createTranslator(uiLanguage());
+}
 const patch = (obj) => store.set(obj);
 
 // ---------------------------------------------------------------------------
@@ -69,6 +81,7 @@ function createWindow(initial = {}) {
     y,
     minWidth: 520,
     minHeight: 360,
+    icon: windowIcon,
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff',
     titleBarStyle: 'hidden',
     titleBarOverlay: { color: '#00000000', symbolColor: '#7a7a7a', height: 38 },
@@ -241,7 +254,11 @@ function installVerificationModes(win, entry) {
         const html = await win.webContents.executeJavaScript('window.__ink.exportHtml()');
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, 'export.html'), html);
-        await htmlToPdf(html, path.join(dir, 'export.pdf'));
+        const pdf = await win.webContents.executeJavaScript("window.__ink.exportPayload('pdf')");
+        await htmlToPdf(pdf.html, path.join(dir, 'export.pdf'), pdf.pdf, pdf.info);
+        const full = await win.webContents.executeJavaScript("window.__ink.exportPayload('png')");
+        await htmlToPng(full.html, path.join(dir, 'export-full.png'), full.width);
+        fs.writeFileSync(path.join(dir, 'export-plain.html'), (await win.webContents.executeJavaScript("window.__ink.exportPayload('html-plain')")).html);
         const preview = new BrowserWindow({ width: 1000, height: 1500, show: false });
         await preview.loadFile(path.join(dir, 'export.html'));
         await new Promise((r) => setTimeout(r, 900));
@@ -431,6 +448,24 @@ function effectiveThemeId() {
   return themeById(cfg('theme')) ? cfg('theme') : 'default';
 }
 
+// KaTeX's stylesheet with its woff2 fonts inlined, so an exported HTML file renders formulas
+// anywhere (and the PDF / PNG pages, which load from a temp file, find the fonts).
+let katexCssCache = null;
+async function katexExportCss() {
+  if (katexCssCache) return katexCssCache;
+  const dir = path.join(__dirname, '../../dist/katex');
+  const css = await fsp.readFile(path.join(dir, 'katex.min.css'), 'utf8').catch(() => '');
+  const fonts = new Map();
+  for (const m of css.matchAll(/url\(fonts\/([\w-]+\.woff2)\)/g)) {
+    if (!fonts.has(m[1])) fonts.set(m[1], (await fsp.readFile(path.join(dir, 'fonts', m[1])).catch(() => null))?.toString('base64'));
+  }
+  // keep only the woff2 source of each @font-face
+  katexCssCache = css.replace(/src:url\(fonts\/([\w-]+\.woff2)\) format\("woff2"\)[^;}]*/g, (all, name) =>
+    fonts.get(name) ? `src:url(data:font/woff2;base64,${fonts.get(name)}) format("woff2")` : all,
+  );
+  return katexCssCache;
+}
+
 async function themeCss(themeId) {
   const theme = themeById(themeId) || themeById('default');
   const read = (p) => fsp.readFile(p, 'utf8').catch(() => '');
@@ -456,6 +491,8 @@ function updateMenu() {
     recentFolders: cfg('recentFolders'),
     pinnedFolders: cfg('pinnedFolders') || [],
     closedFiles: cfg('closedFiles') || [],
+    lastExport: cfg('lastExport') || null,
+    t: tr,
     windows: orderedWindows().map((w) => ({ id: w.id, title: entryOf(w)?.state.title || 'Untitled', focused: w.id === (focusedWindow()?.id) })),
     onCommand: (id, payload) => sendCommand(id, payload),
     onWindow: (id) => {
@@ -757,27 +794,127 @@ async function searchFolder({ dir, query, caseSensitive = false, wholeWord = fal
 // ---------------------------------------------------------------------------
 // export
 // ---------------------------------------------------------------------------
-async function htmlToPdf(html, outPath, pageSize = 'A4') {
-  const tmp = path.join(os.tmpdir(), `posemark-print-${Date.now()}.html`);
+// Load an export page into a throwaway window (written to a temp file so relative file:// images
+// resolve the same way as when the user opens the exported HTML).
+async function withExportPage(html, opts, fn) {
+  const tmp = path.join(os.tmpdir(), `posemark-export-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.html`);
   await fsp.writeFile(tmp, html, 'utf8');
   const win = new BrowserWindow({
     show: false,
-    webPreferences: { javascript: false },
+    useContentSize: true,
+    ...opts,
+    webPreferences: { backgroundThrottling: false, ...(opts && opts.webPreferences) },
   });
   try {
     await win.loadFile(tmp);
     // Give fonts and images a moment to settle.
     await new Promise((r) => setTimeout(r, 600));
-    const data = await win.webContents.printToPDF({
-      printBackground: true,
-      pageSize,
-      margins: { marginType: 'none' },
-    });
-    await fsp.writeFile(outPath, data);
+    return await fn(win);
   } finally {
     win.destroy();
     fsp.unlink(tmp).catch(() => {});
   }
+}
+
+// `pdf` comes from pdfOptions() in the renderer (inches); `info` is the document properties.
+async function htmlToPdf(html, outPath, pdf = {}, info = null) {
+  await withExportPage(html, { webPreferences: { javascript: false } }, async (win) => {
+    const options = {
+      printBackground: true,
+      pageSize: pdf.pageSize || 'A4',
+      landscape: !!pdf.landscape,
+      margins: pdf.margins || { top: 0, bottom: 0, left: 0, right: 0 },
+      displayHeaderFooter: !!pdf.displayHeaderFooter,
+    };
+    if (pdf.displayHeaderFooter) {
+      options.headerTemplate = pdf.headerTemplate;
+      options.footerTemplate = pdf.footerTemplate;
+    }
+    let data = await win.webContents.printToPDF(options);
+    if (info) data = setPdfInfo(Buffer.from(data), info);
+    await fsp.writeFile(outPath, data);
+  });
+}
+
+// The whole page as one PNG: the window is scrolled one viewport at a time and the captures
+// are stitched row by row (a single capture is capped by the GPU texture size).
+async function htmlToPng(html, outPath, width = 860) {
+  const viewport = 1600;
+  await withExportPage(html, { width, height: viewport }, async (win) => {
+    const wc = win.webContents;
+    // no scrollbars in the picture (the page's own, or a wide code block's)
+    await wc.insertCSS('::-webkit-scrollbar { display: none !important; } html { scrollbar-width: none; }');
+    const total = await wc.executeJavaScript('Math.ceil(Math.max(document.documentElement.scrollHeight, document.body.scrollHeight))');
+    const view = await wc.executeJavaScript('window.innerHeight');
+    const rows = [];
+    let pixelWidth = 0;
+    let scale = 1;
+    for (let y = 0; y < total; y += view) {
+      const actual = await wc.executeJavaScript(`window.scrollTo(0, ${y}); new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(window.scrollY))))`);
+      await new Promise((r) => setTimeout(r, 60));
+      const shot = await wc.capturePage();
+      const size = shot.getSize();
+      if (!size.width || !size.height) continue;
+      scale = size.width / width;
+      pixelWidth = size.width;
+      const bitmap = shot.toBitmap();
+      const stride = bitmap.length / size.height;
+      // the last viewport may be clamped: skip what the previous capture already covered
+      const skip = Math.round((y - actual) * scale);
+      const take = Math.min(size.height - skip, Math.round(Math.min(view, total - y) * scale));
+      for (let r = 0; r < take; r++) {
+        const start = (skip + r) * stride;
+        rows.push(bitmap.subarray(start, start + pixelWidth * 4));
+      }
+    }
+    if (!rows.length) throw new Error('nothing was rendered');
+    const image = nativeImage.createFromBitmap(Buffer.concat(rows), { width: pixelWidth, height: rows.length, scaleFactor: 1 });
+    await fsp.writeFile(outPath, image.toPNG());
+  });
+}
+
+const EXPORT_FORMATS = {
+  html: { name: 'HTML', ext: 'html' },
+  'html-plain': { name: 'HTML', ext: 'html' },
+  pdf: { name: 'PDF', ext: 'pdf' },
+  png: { name: 'PNG Image', ext: 'png' },
+};
+
+// Where the save dialog starts: the export folder preference, else next to the document.
+function exportDefaultPath(docPath, ext) {
+  const name = `${docPath ? path.basename(docPath).replace(/\.[^.]+$/, '') : 'Untitled'}.${ext}`;
+  const dir = cfg('exportFolder') || (docPath ? path.dirname(docPath) : app.getPath('documents'));
+  return path.join(dir, name);
+}
+
+// payload: { format, html, docPath, pdf, info, width, previous }
+// `previous` skips the dialog and writes into the folder of the last export.
+async function exportDocument(win, payload) {
+  const format = EXPORT_FORMATS[payload.format];
+  if (!format) throw new Error(`unknown export format ${payload.format}`);
+  let target;
+  if (payload.previous) {
+    const last = cfg('lastExport');
+    const dir = (last && last.dir) || path.dirname(exportDefaultPath(payload.docPath, format.ext));
+    target = path.join(dir, path.basename(exportDefaultPath(payload.docPath, format.ext)));
+  } else {
+    const res = await dialog.showSaveDialog(win, {
+      defaultPath: exportDefaultPath(payload.docPath, format.ext),
+      filters: [{ name: format.name, extensions: [format.ext] }],
+    });
+    if (res.canceled || !res.filePath) return null;
+    target = res.filePath;
+  }
+  if (payload.format === 'pdf') await htmlToPdf(payload.html, target, payload.pdf, payload.info);
+  else if (payload.format === 'png') await htmlToPng(payload.html, target, payload.width);
+  else await fsp.writeFile(target, payload.html, 'utf8');
+  patch({ lastExport: { format: payload.format, dir: path.dirname(target) } });
+  updateMenu();
+  sendConfig();
+  const after = cfg('exportOpenAfter');
+  if (after === 'open') shell.openPath(target);
+  else if (after === 'reveal') shell.showItemInFolder(target);
+  return target;
 }
 
 // ---------------------------------------------------------------------------
@@ -785,13 +922,14 @@ async function htmlToPdf(html, outPath, pageSize = 'A4') {
 // svg) is drawn once in a throwaway window and handed back as a PNG data URL.
 // ---------------------------------------------------------------------------
 async function rasterizeBlocks({ html, css, width = 720 }) {
-  const distDir = path.join(__dirname, '../../dist');
-  const name = `_wx-raster-${Date.now()}.html`;
-  const file = path.join(distDir, name);
+  // A temp file, not next to the app: in a packaged build dist/ lives inside the read-only
+  // app.asar (and an MSIX install is read-only too). KaTeX comes inline with its fonts.
+  const file = path.join(os.tmpdir(), `posemark-wx-raster-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.html`);
   const page = `<!doctype html><html><head><meta charset="utf-8">
+<style>${await katexExportCss()}</style>
 <style>html,body{margin:0;padding:0;background:#fff}
+::-webkit-scrollbar{display:none}
 ${css || ''}</style>
-<link rel="stylesheet" href="katex/katex.min.css">
 </head><body>${html}</body></html>`;
   await fsp.writeFile(file, page, 'utf8');
 
@@ -1015,7 +1153,7 @@ function registerIpc() {
   ipcMain.handle('styles:export', async (_e, themeId) => {
     const dir = path.join(__dirname, '../../dist/styles');
     const content = await fsp.readFile(path.join(dir, 'content.css'), 'utf8').catch(() => '');
-    return `${content}\n${await themeCss(themeId)}`;
+    return `${await katexExportCss()}\n${content}\n${await themeCss(themeId)}`;
   });
 
   // Images: the renderer works out the destination folder (front matter, preference,
@@ -1110,7 +1248,8 @@ function registerIpc() {
   ipcMain.handle('config:get', () => store.get());
   ipcMain.handle('config:set', (_e, p) => {
     patch(p);
-    if (['theme', 'themeDark', 'themeFollowSystem', 'pinnedFolders', 'recentFiles', 'recentFolders', 'closedFiles'].some((k) => k in p)) updateMenu();
+    if ('language' in p) refreshLanguage();
+    if (['language', 'theme', 'themeDark', 'themeFollowSystem', 'pinnedFolders', 'recentFiles', 'recentFolders', 'closedFiles'].some((k) => k in p)) updateMenu();
     sendConfig();
     return store.get();
   });
@@ -1205,25 +1344,7 @@ function registerIpc() {
   ipcMain.handle('draft:read', (_e, id) => drafts.read(id));
   ipcMain.handle('draft:remove', (_e, id) => drafts.remove(id));
 
-  ipcMain.handle('export:html', async (e, payload) => {
-    const res = await dialog.showSaveDialog(winFor(e), {
-      defaultPath: payload.defaultPath,
-      filters: [{ name: 'HTML', extensions: ['html'] }],
-    });
-    if (res.canceled || !res.filePath) return null;
-    await fsp.writeFile(res.filePath, payload.html, 'utf8');
-    return res.filePath;
-  });
-
-  ipcMain.handle('export:pdf', async (e, payload) => {
-    const res = await dialog.showSaveDialog(winFor(e), {
-      defaultPath: payload.defaultPath,
-      filters: [{ name: 'PDF', extensions: ['pdf'] }],
-    });
-    if (res.canceled || !res.filePath) return null;
-    await htmlToPdf(payload.html, res.filePath, payload.pageSize || 'A4');
-    return res.filePath;
-  });
+  ipcMain.handle('export:document', (e, payload) => exportDocument(winFor(e), payload));
 
   ipcMain.handle('shell:openExternal', (_e, url) => {
     if (/^(https?|mailto):/i.test(url)) return shell.openExternal(url);
@@ -1258,9 +1379,9 @@ function registerIpc() {
   ipcMain.handle('app:confirm', async (e, payload) => {
     const res = await dialog.showMessageBox(winFor(e), {
       type: payload.type || 'question',
-      message: payload.message,
-      detail: payload.detail,
-      buttons: payload.buttons || ['OK'],
+      message: tr(payload.message),
+      detail: tr(payload.detail),
+      buttons: (payload.buttons || ['OK']).map((b) => tr(b)),
       defaultId: payload.defaultId ?? 0,
       cancelId: payload.cancelId ?? (payload.buttons ? payload.buttons.length - 1 : 0),
       noLink: true,
@@ -1270,13 +1391,14 @@ function registerIpc() {
   ipcMain.handle('app:info', async (e, payload) => {
     await dialog.showMessageBox(winFor(e), {
       type: 'info',
-      message: payload.message,
-      detail: payload.detail,
-      buttons: ['OK'],
+      message: tr(payload.message),
+      detail: tr(payload.detail),
+      buttons: [tr('OK')],
       noLink: true,
     });
     return true;
   });
+  ipcMain.handle('app:language', () => uiLanguage());
   ipcMain.handle('app:paths', () => ({
     documents: app.getPath('documents'),
     home: app.getPath('home'),
@@ -1363,6 +1485,7 @@ if (!app.requestSingleInstanceLock()) {
 
   app.whenReady().then(() => {
     store = new Store(path.join(app.getPath('userData'), 'config.json'));
+    refreshLanguage();
     drafts = new Drafts(path.join(app.getPath('userData'), 'drafts'));
     userThemes = new UserThemes(path.join(app.getPath('userData'), 'themes'));
     registerIpc();

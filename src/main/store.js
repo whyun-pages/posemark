@@ -4,6 +4,8 @@ const fs = require('fs');
 const path = require('path');
 
 const DEFAULTS = {
+  // UI language: 'system' | 'en' | 'zh-CN'
+  language: 'system',
   theme: 'default',
   // follow the OS dark mode: `theme` is used in light mode, `themeDark` in dark mode
   themeFollowSystem: false,
@@ -75,6 +77,24 @@ const DEFAULTS = {
   mermaidTheme: 'auto',
   mermaidSequenceNumbers: false,
   mermaidFlowchartCurve: 'basis',
+  // export (front matter keys like `pdf-paper` override these per document)
+  exportTheme: 'current', // 'current' = the editor's theme
+  exportFolder: '', // '' = next to the document
+  exportOpenAfter: 'none', // 'none' | 'open' | 'reveal'
+  exportImageWidth: 860,
+  pdfPaperSize: 'A4',
+  pdfLandscape: false,
+  pdfMarginTop: 18, // mm
+  pdfMarginBottom: 18,
+  pdfMarginLeft: 16,
+  pdfMarginRight: 16,
+  pdfHeader: '',
+  pdfFooter: '',
+  pdfH1PageBreak: false,
+  htmlOutline: false,
+  htmlHead: '',
+  htmlBody: '',
+  lastExport: null, // { format, dir } for Export with Previous
   recentFiles: [],
   recentFolders: [],
   pinnedFolders: [],

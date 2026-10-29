@@ -138,7 +138,9 @@ const sourceLines = ViewPlugin.fromClass(
   { decorations: (v) => v.decorations },
 );
 
-const sourceHighlighting = [sourceLines, syntaxHighlighting(srcHighlight)];
+// The `cm-source` class goes through editorAttributes: CodeMirror rewrites the editor's class
+// attribute on every focus change, so a class added by hand vanishes on the first click.
+const sourceHighlighting = [sourceLines, syntaxHighlighting(srcHighlight), EditorView.editorAttributes.of({ class: 'cm-source' })];
 
 const tabSize = new Compartment();
 const spellcheckAttr = new Compartment();
@@ -570,7 +572,6 @@ export function clearStyle(view) {
 export const markCompartment = tabSize;
 
 export function setSourceMode(view, on) {
-  view.dom.classList.toggle('cm-source', !!on);
   view.dispatch({ effects: sourceMode.reconfigure(on ? sourceHighlighting : livePreview) });
 }
 

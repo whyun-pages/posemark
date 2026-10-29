@@ -27,7 +27,9 @@
     "start": "node build.mjs && electron .",
     "dev": "node build.mjs --watch",
     "test": "node --test \"test/**/*.test.mjs\"",
-    "dist": "node build.mjs && electron-builder --publish never"
+    "dist": "node build.mjs && electron-builder --publish never",
+    "dist:store": "node build.mjs && electron-builder --win appx --x64 --publish never -c.toolsets.winCodeSign=1.1.0",
+    "icons": "electron build/make-icons.js"
   },
   "devDependencies": {
     "@codemirror/autocomplete": "^6.18.0",
@@ -55,7 +57,8 @@
     "appId": "com.whyun.posemark",
     "productName": "Posemark",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "src/main/**",
@@ -82,6 +85,7 @@
       }
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -97,11 +101,27 @@
         }
       ]
     },
+    "appx": {
+      "identityName": "whyun.Posemark",
+      "publisher": "CN=48325D51-0D86-4D4C-811F-9CFEA8D3F947",
+      "publisherDisplayName": "whyun",
+      "displayName": "Posemark",
+      "applicationId": "Posemark",
+      "backgroundColor": "transparent",
+      "languages": [
+        "zh-CN",
+        "en-US"
+      ],
+      "showNameOnTiles": false,
+      "addAutoLaunchExtension": false,
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
+    },
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true
     },
     "mac": {
+      "icon": "build/icon.png",
       "target": [
         {
           "target": "dmg",
@@ -114,6 +134,7 @@
       "category": "public.app-category.productivity"
     },
     "linux": {
+      "icon": "build/icon.png",
       "target": [
         "AppImage",
         "deb"

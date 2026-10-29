@@ -1,8 +1,10 @@
 'use strict';
 const { Menu, app, shell } = require('electron');
 const path = require('path');
+const { translateMenu } = require('./i18n');
 
 const isMac = process.platform === 'darwin';
+const EXPORT_LABELS = { html: 'HTML', 'html-plain': 'HTML without styles', pdf: 'PDF', png: 'PNG' };
 
 function buildMenu(opts) {
   const {
@@ -15,6 +17,8 @@ function buildMenu(opts) {
     pinnedFolders = [],
     closedFiles = [],
     windows = [],
+    lastExport = null,
+    t = null,
     isDev,
   } = opts;
   const cmd = (id) => () => onCommand(id);
@@ -72,7 +76,12 @@ function buildMenu(opts) {
           label: 'Export',
           submenu: [
             item('HTML', 'export:html'),
+            item('HTML (without styles)', 'export:htmlPlain'),
             item('PDF', 'export:pdf'),
+            item('Image (PNG)', 'export:png'),
+            { type: 'separator' },
+            item(lastExport ? `Export with Previous (${EXPORT_LABELS[lastExport.format] || lastExport.format})` : 'Export with Previous', 'export:previous', 'CmdOrCtrl+Alt+E', { enabled: !!lastExport }),
+            { type: 'separator' },
             item('Copy as HTML Code', 'export:copyHtml'),
             item('Copy for WeChat', 'export:copyWeChat', 'CmdOrCtrl+Alt+C'),
             item('Export Settings…', 'export:settings'),
@@ -237,7 +246,7 @@ function buildMenu(opts) {
     },
   ];
 
-  return Menu.buildFromTemplate(template);
+  return Menu.buildFromTemplate(translateMenu(template, t));
 }
 
 module.exports = { buildMenu };

@@ -5,10 +5,6 @@ tracked in `README.md`; this file lists what is still missing, in the suggested 
 
 ## Batch 3 — export
 
-- [ ] HTML (without styles), export as PNG image
-- [ ] PDF: paper size and margins, header/footer with `${pageNo}` / `${pageCount}` variables, page break before h1, theme selection, YAML metadata into PDF properties
-- [ ] HTML: optional collapsible outline, custom `<head>` / `<body>` additions, `${title}` style YAML variables
-- [ ] General: default export location, open after export, "export with previous settings", YAML front matter overriding export settings
 - [ ] Pandoc-based formats (docx, odt, rtf, epub, LaTeX, MediaWiki, reST, Textile, OPML) and custom command exports
 
 ## Editor details

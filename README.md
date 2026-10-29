@@ -34,6 +34,8 @@ Then drop the official `electron-v<version>-win32-x64.zip` (from
 ```bash
 pnpm test            # unit tests (node:test): Markdown renderer, paths, images, math, diagrams, outline, word count, drafts, user themes
 pnpm dist            # package an installer for the current OS into release/
+pnpm dist:store      # Microsoft Store package (MSIX/.appx) into release/
+pnpm icons           # regenerate every icon from build/icon.svg
 ```
 
 CI runs the tests and the renderer build on Linux, Windows and macOS for every push and pull
@@ -44,7 +46,10 @@ git tag v0.1.0 && git push origin v0.1.0
 ```
 
 The release workflow builds the Windows (NSIS installer + portable zip), macOS (dmg, x64 + arm64) and Linux (AppImage, deb)
-packages and attaches them to a GitHub Release. Builds are not code-signed yet.
+packages and attaches them to a GitHub Release. Builds are not code-signed yet. A separate `store` job
+builds the Microsoft Store package (`.appx`) and keeps it as a workflow artifact for upload to Partner
+Center (which signs it); its package identity comes from the repository variables
+`APPX_IDENTITY_NAME`, `APPX_PUBLISHER` and `APPX_PUBLISHER_DISPLAY_NAME`.
 
 Running Electron **45.0.0** (Chromium 156, Node 22).
 
@@ -249,8 +254,24 @@ Right-click anything in the file tree for new file / new folder / rename / trash
 
 **Output**
 
-- Export HTML (self-contained: theme CSS + KaTeX markup + rendered diagrams inlined)
-- Export PDF (rendered through a hidden window and Chromium `printToPDF`, so it matches the page)
+- Export HTML (self-contained: theme CSS, highlight colours, KaTeX CSS with its fonts and rendered
+  diagrams inlined), **HTML without styles** (bare markup), and **Image (PNG)** — the whole document
+  as one picture at a configurable width
+- Export PDF (rendered through a hidden window and Chromium `printToPDF`, so it matches the page):
+  paper size (A3/A4/A5/B5/Letter/Legal/Tabloid or a custom `148x210 mm`), landscape, margins,
+  header and footer (`left | center | right`, with `${title}`, `${author}`, `${today}`,
+  `${pageNo}`, `${pageCount}` and any front matter key), a page break before every `#` heading, and
+  `title` / `author` / `description` / `keywords` from the front matter written into the PDF's
+  document properties
+- HTML options: a collapsible outline side panel (pure CSS), raw HTML appended to `<head>` and
+  `<body>` with the same `${…}` variables
+- Preferences › Export: theme for exports, default export folder, open / reveal after exporting;
+  `File › Export › Export with Previous` (`Ctrl+Alt+E`) repeats the last format into the last folder
+  without a dialog
+- **Front matter overrides** the export settings per document: `export-theme`, `pdf-paper`,
+  `pdf-landscape`, `pdf-margin` (`20` / `20 15` / `t r b l`, mm) and `pdf-margin-top`…,
+  `pdf-header`, `pdf-footer`, `pdf-h1-page-break`, `html-outline`, `html-head` / `html-body`
+  (`|` block scalars work), `image-width`
 - Copy as HTML, copy as Markdown
 - **Copy for WeChat** (`Ctrl+Alt+C`, also in the editor's right-click menu) — see below
 
@@ -285,6 +306,11 @@ worst case the editor can do to it.
 Caveats: 公众号 strips `border-radius` on some elements and rewrites `<table>` widths; wide code
 blocks rely on `overflow-x: auto`, which the app-side editor honours but the phone-side preview may
 scroll less gracefully. Nothing that needs remote hosting (image uploads, 图床) is attempted.
+
+**Interface language**: English or 简体中文 (Preferences › General › Language, or follow the OS).
+Menus, dialogs, preferences, messages and editor hints are translated; switching applies at once.
+The English text is the translation key (`src/main/locales/zh-CN.js`), with `{name}` slots for
+messages that carry a value.
 
 **Themes**: Default, Night, Pixyll, Whitey, Newsprint — plain CSS variable files, drop your own in
 `src/renderer/styles/themes/`.
@@ -328,6 +354,8 @@ src/main/        main process: windows, menu, IPC, config store, PDF pipeline
 src/main/menu.js application menu (the Typora-like menu tree)
 src/main/drafts.js      unsaved-draft backups under userData/drafts
 src/main/user-themes.js user theme folder (base.user.css, <theme>.user.css, whole themes)
+src/main/i18n.js        UI translation (shared with the renderer); locales/zh-CN.js is the dictionary
+src/main/pdf-info.js    PDF document properties (incremental update of the Info dictionary)
 src/main/images.js      image files: import / copy / move / download, uploaders (PicGo-Core, PicList, command)
 src/renderer/    renderer bundle
   main.js        app shell: files, sidebar, outline, status bar, command dispatch, export
@@ -335,6 +363,7 @@ src/renderer/    renderer bundle
   live-preview.js decorations: hide marks off-caret, replace blocks with widgets
   blocks.js      block scanner + block widgets (code, table, math, diagram, image, task)
   markdown.js    markdown-it instance for export / copy-as-HTML / table rendering
+  export-settings.js export options: front matter overrides, ${var} expansion, PDF page / header / footer, outline
   wechat.js      copy-for-WeChat: inline style profile + rasteriser for maths and diagrams
   syntax.js      highlight.js wrapper
   paths.js       path helpers: file:// resolution, typora-root-url, Markdown image paths, <img> parsing
@@ -343,7 +372,9 @@ src/renderer/    renderer bundle
   diagrams.js    sequence (js-sequence) and flow (flowchart.js) → Mermaid translation
   wordcount.js   word count panel figures and reading time
   styles/        app.css, editor.css, content.css (export), themes/*.css
+build/           app icon: icon.svg (source) → `pnpm icons` → icon.png / icon.ico / appx/*.png
 samples/demo.md  a document that exercises everything
+website/         static promo site (home, docs, privacy policy); see website/README.md
 docs/            screenshots
 ```
 
@@ -365,6 +396,7 @@ docs/            screenshots
 | Word count panel | `Ctrl+Shift+W` |
 | Find in folder / Paste as plain text | `Ctrl+Shift+F` / `Ctrl+Shift+V` |
 | Export PDF / Print | `Ctrl+P` |
+| Export with Previous | `Ctrl+Alt+E` |
 | Copy for WeChat | `Ctrl+Alt+C` |
 | Rename / Duplicate / Move to trash / Undo file operation (file tree) | `F2` / `Ctrl+D` / `Del` / `Ctrl+Z` |
 
@@ -372,6 +404,10 @@ docs/            screenshots
 
 - Editing the *inside* of a rendered formula (picking a sub-expression in the KaTeX tree) — the field
   is whole-TeX, not structural. Tables, code, mermaid and images are all editable in place now.
-- Pandoc export (docx / EPUB / LaTeX), spell-check dictionaries beyond Chromium's.
+- Pandoc export (docx / EPUB / LaTeX) and custom export commands, spell-check dictionaries beyond Chromium's.
 - Strict mode only relaxes headings; list indentation still follows GFM.
 - Tabs: one document per window, like Typora (`Ctrl+Tab` switches windows instead).
+
+## License
+
+[MIT](LICENSE)
