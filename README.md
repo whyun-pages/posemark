@@ -351,7 +351,8 @@ How `posemark` gets on PATH: the Windows installer has a page for it (it adds `b
 folder to the user or machine PATH and the uninstaller removes it again); on macOS use
 File › Install "posemark" Shell Command, which links `Contents/Resources/bin/posemark` into
 `/usr/local/bin`; the deb package installs `/usr/bin/posemark`; for the AppImage or the portable zip,
-alias the executable yourself. The Store (MSIX) build has no alias yet.
+alias the executable yourself. The Store (MSIX) build declares an app execution alias
+(`build/appx/extensions.xml`), so `posemark` is available right after installing from the Store.
 
 ## Verifying without clicking
 

@@ -1,0 +1,15 @@
+<!-- Extra entries for the Microsoft Store package's manifest (electron-builder appends this
+     inside <Extensions>; package.json › build.appx.customExtensionsPath).
+
+     App execution alias: after installing from the Store, `posemark` works in any terminal.
+     Windows places %LOCALAPPDATA%\Microsoft\WindowsApps\posemark.exe, which is already on the
+     user PATH, and users can turn it off under Settings › Apps › App execution aliases. The
+     alias launches the same Posemark.exe, so the command line in src/main/cli-args.js applies. -->
+<uap5:Extension xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+    Category="windows.appExecutionAlias"
+    Executable="app\Posemark.exe"
+    EntryPoint="Windows.FullTrustApplication">
+  <uap5:AppExecutionAlias>
+    <uap5:ExecutionAlias Alias="posemark.exe" />
+  </uap5:AppExecutionAlias>
+</uap5:Extension>
