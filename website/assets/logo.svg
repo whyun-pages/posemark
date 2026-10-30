@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4677f5"/>
+      <stop offset="1" stop-color="#1d3a94"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f62e6"/>
+      <stop offset="1" stop-color="#1f45b5"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#0b1a4d" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <!-- plate -->
+  <rect x="32" y="32" width="960" height="960" rx="216" fill="url(#bg)"/>
+  <!-- page -->
+  <g filter="url(#shadow)">
+    <path d="M262 236a56 56 0 0 1 56-56h300l144 144v464a56 56 0 0 1-56 56H318a56 56 0 0 1-56-56z" fill="#ffffff"/>
+  </g>
+  <path d="M618 180v88a56 56 0 0 0 56 56h88z" fill="#dbe4fb"/>
+  <!-- the P -->
+  <path fill="url(#ink)" fill-rule="evenodd"
+        d="M362 330a24 24 0 0 1 24-24h170a136 136 0 0 1 0 272h-76v118a24 24 0 0 1-24 24h-70a24 24 0 0 1-24-24z
+           M480 404v100h70a50 50 0 0 0 0-100z"/>
+  <!-- caret / highlight -->
+  <rect x="362" y="742" width="300" height="38" rx="19" fill="#ff8a3d"/>
+</svg>

@@ -35,6 +35,8 @@ import { refreshLivePreview } from './live-preview.js';
 import { scanBlocks, headingOf, retargetedImageSource, writeImageWidth, configureMermaid } from './blocks.js';
 import { htmlToMarkdown, htmlLooksPlain } from './html2md.js';
 import { renderFragment, buildStandaloneHtml, splitFrontMatter, slugify } from './markdown.js';
+import { tr, watchDom, setLanguage, currentLanguage, LANGUAGES } from './i18n.js';
+import { resolveExportSettings, exportVars, expandVars, pdfOptions, pdfCss, pdfInfo, outlineHtml, OUTLINE_CSS, PAPER_SIZES } from './export-settings.js';
 import { buildWeChatFragment } from './wechat.js';
 import { renderWeChatPanel, wechatStyleFrom } from './wechat-prefs.js';
 import { basename, dirOf, resolveFile, imageMarkdownPath, imageFolderFor, parseImageTag, isAbsolutePath, joinDir } from './paths.js';
@@ -1572,6 +1574,18 @@ const PREF_SECTIONS = [
     label: 'General',
     groups: [
       {
+        title: 'Language',
+        fields: [
+          {
+            key: 'language',
+            label: 'Interface language',
+            type: 'select',
+            hint: 'System follows the operating system language',
+            options: LANGUAGES,
+          },
+        ],
+      },
+      {
         title: 'Startup',
         fields: [
           {
@@ -1860,6 +1874,80 @@ const PREF_SECTIONS = [
   {
     id: 'export',
     label: 'Export',
+    groups: [
+      {
+        title: 'General',
+        fields: [
+          {
+            key: 'exportTheme',
+            label: 'Theme for exports',
+            type: 'select',
+            hint: 'HTML, PDF and image exports. Front matter: export-theme: night',
+            options: (themes) => [['current', 'Same as the editor'], ...themes.map((t) => [t.id, t.name])],
+          },
+          { key: 'exportFolder', label: 'Default export folder', type: 'folder', hint: 'Empty: next to the document' },
+          {
+            key: 'exportOpenAfter',
+            label: 'After exporting',
+            type: 'select',
+            options: [['none', 'Do nothing'], ['open', 'Open the exported file'], ['reveal', 'Reveal it in the folder']],
+          },
+          {
+            key: 'lastExport',
+            label: 'Export with Previous',
+            type: 'button',
+            text: 'Run',
+            hint: 'File › Export › Export with Previous (Ctrl+Alt+E) repeats the last format into the last folder, without a dialog',
+            run: () => exportPrevious(),
+          },
+        ],
+      },
+      {
+        title: 'PDF',
+        fields: [
+          {
+            key: 'pdfPaperSize',
+            label: 'Paper size',
+            type: 'select',
+            hint: 'Front matter: pdf-paper: Letter (or a custom size like 148x210 mm)',
+            options: () => {
+              const list = PAPER_SIZES.map((p) => [p, p]);
+              const cur = S.config.pdfPaperSize;
+              return cur && !PAPER_SIZES.includes(cur) ? [...list, [cur, cur]] : list;
+            },
+          },
+          { key: 'pdfLandscape', label: 'Landscape', type: 'bool' },
+          { key: 'pdfMarginTop', label: 'Top margin (mm)', type: 'number', min: 0, max: 80, hint: 'Front matter: pdf-margin: 20 15 (top/bottom, left/right)' },
+          { key: 'pdfMarginBottom', label: 'Bottom margin (mm)', type: 'number', min: 0, max: 80 },
+          { key: 'pdfMarginLeft', label: 'Left margin (mm)', type: 'number', min: 0, max: 80 },
+          { key: 'pdfMarginRight', label: 'Right margin (mm)', type: 'number', min: 0, max: 80 },
+          {
+            key: 'pdfHeader',
+            label: 'Header',
+            type: 'text',
+            hint: 'left | center | right — ${title}, ${author}, ${today}, ${pageNo}, ${pageCount}, any front matter key',
+          },
+          { key: 'pdfFooter', label: 'Footer', type: 'text', hint: 'e.g. ${title} | | ${pageNo} / ${pageCount}' },
+          { key: 'pdfH1PageBreak', label: 'Start every level-1 heading on a new page', type: 'bool' },
+        ],
+      },
+      {
+        title: 'HTML',
+        fields: [
+          { key: 'htmlOutline', label: 'Include a collapsible outline', type: 'bool', hint: 'A side panel with the headings; front matter: html-outline: true' },
+          { key: 'htmlHead', label: 'Append in <head>', type: 'textarea', hint: 'Raw HTML (meta tags, scripts, styles); ${title} and front matter variables are filled in' },
+          { key: 'htmlBody', label: 'Append in <body>', type: 'textarea', hint: 'Raw HTML added after the content' },
+        ],
+      },
+      {
+        title: 'Image',
+        fields: [{ key: 'exportImageWidth', label: 'Image width (px)', type: 'number', min: 320, max: 2400, hint: 'Export › Image (PNG) renders the whole document at this width' }],
+      },
+    ],
+  },
+  {
+    id: 'wechat',
+    label: 'WeChat',
     // the section itself is the WeChat style panel; the fields below serve search
     panel: true,
     groups: [
@@ -2011,6 +2099,12 @@ function prefControl(field, themes) {
     input.max = field.max;
     input.value = S.config[field.key];
     input.addEventListener('change', () => setPref(field.key, Number(input.value)));
+  } else if (field.type === 'textarea') {
+    input = document.createElement('textarea');
+    input.rows = 4;
+    input.spellcheck = false;
+    input.value = S.config[field.key] || '';
+    input.addEventListener('change', () => setPref(field.key, input.value));
   } else {
     input = document.createElement('input');
     input.type = 'text';
@@ -2023,7 +2117,7 @@ function prefControl(field, themes) {
 function prefRow(field, themes) {
   // a <label> would forward clicks on the text to the button inside
   const row = document.createElement(['color', 'button', 'folder'].includes(field.type) ? 'div' : 'label');
-  row.className = 'pref-row' + (field.type === 'bool' ? ' check' : '') + (field.type === 'button' ? ' action' : '');
+  row.className = 'pref-row' + (field.type === 'bool' ? ' check' : '') + (field.type === 'button' ? ' action' : '') + (field.type === 'textarea' ? ' block' : '');
   const text = document.createElement('span');
   text.className = 'pref-text';
   const label = document.createElement('span');
@@ -2072,7 +2166,9 @@ function renderPrefs(themes) {
     return;
   }
   const optionText = (f) => (Array.isArray(f.options) ? f.options.map(([, t]) => t).join(' ') : '');
-  const matches = (f) => !query || `${f.label} ${f.hint || ''} ${optionText(f)}`.toLowerCase().includes(query);
+  // the English text and what the user sees both match
+  const searchText = (f) => `${f.label} ${f.hint || ''} ${optionText(f)}`;
+  const matches = (f) => !query || `${searchText(f)} ${tr(f.label)} ${tr(f.hint || '')}`.toLowerCase().includes(query);
   for (const section of PREF_SECTIONS) {
     if (!query && section.id !== prefsSection) continue;
     for (const group of section.groups) {
@@ -2145,6 +2241,14 @@ function applyRuntimeConfig() {
   ctx.config.mermaidSequenceNumbers = S.config.mermaidSequenceNumbers === true;
   ctx.config.mermaidFlowchartCurve = S.config.mermaidFlowchartCurve || 'basis';
   if (!appliedConfig || MERMAID_KEYS.some((k) => appliedConfig[k] !== S.config[k])) configureMermaid();
+  if (appliedConfig && appliedConfig.language !== S.config.language) {
+    window.ink.language().then((lang) => {
+      if (lang === currentLanguage()) return;
+      setLanguage(lang);
+      // editor widgets (table hint, contents block…) are rebuilt in the new language
+      if (S.view) refreshLivePreview(S.view);
+    });
+  }
   if (appliedConfig && S.view) {
     if (PREVIEW_KEYS.some((k) => appliedConfig[k] !== S.config[k])) {
       refreshLivePreview(S.view);
@@ -2169,9 +2273,12 @@ function applyRuntimeConfig() {
 // ---------------------------------------------------------------------------
 // export
 // ---------------------------------------------------------------------------
-async function buildExportHtml() {
+// One export page for every format. `format`: 'html' | 'html-plain' | 'pdf' | 'png' (or 'copy').
+// Settings come from the config with the document's front matter overrides applied.
+async function buildExport(format = 'html') {
   const src = S.view.state.doc.toString();
   const { meta } = splitFrontMatter(src);
+  const settings = resolveExportSettings(S.config, meta);
   const host = document.createElement('div');
   host.innerHTML = renderFragment(src, { docPath: S.path });
   let i = 0;
@@ -2184,29 +2291,76 @@ async function buildExportHtml() {
       /* leave the code block as is */
     }
   }
-  const css = await window.ink.exportCss(S.themeId);
-  const dark = document.body.classList.contains('theme-dark');
   const fallback = S.path ? basename(S.path).replace(/\.[^.]+$/, '') : 'Untitled';
-  return buildStandaloneHtml({
-    title: (meta && meta.title) || fallback,
+  const vars = exportVars(meta, { title: fallback, filePath: S.path });
+  const plain = format === 'html-plain';
+  const html = format === 'html' || plain || format === 'copy';
+
+  let css = '';
+  let bodyClass = '';
+  if (!plain) {
+    const themes = await window.ink.themes();
+    const wanted = settings.exportTheme && settings.exportTheme !== 'current' ? themes.find((t) => t.id === settings.exportTheme) : null;
+    const theme = wanted || themes.find((t) => t.id === S.themeId) || { id: S.themeId, dark: document.body.classList.contains('theme-dark') };
+    css = await window.ink.exportCss(theme.id);
+    bodyClass = theme.dark ? 'theme-dark' : '';
+    if (format === 'pdf') css += `
+${pdfCss(settings)}`;
+  }
+
+  let beforeBody = '';
+  if (html && !plain && settings.htmlOutline) {
+    const heads = [...host.querySelectorAll('h1[id], h2[id], h3[id], h4[id], h5[id], h6[id]')]
+      .filter((h) => !h.closest('.toc'))
+      .map((h) => ({ level: +h.tagName[1], id: h.id, text: h.textContent.trim() }));
+    if (heads.length) {
+      beforeBody = outlineHtml(heads);
+      css += OUTLINE_CSS;
+    }
+  }
+  const page = buildStandaloneHtml({
+    title: vars.title,
     bodyHtml: host.innerHTML,
     css,
-    bodyClass: dark ? 'theme-dark' : '',
+    bodyClass,
+    head: html ? expandVars(settings.htmlHead, vars) : '',
+    beforeBody,
+    afterBody: html ? expandVars(settings.htmlBody, vars) : '',
   });
+  return { html: page, settings, meta, vars };
 }
 
-async function exportHtml() {
-  const html = await buildExportHtml();
-  const defaultPath = S.path ? S.path.replace(/\.[^.]+$/, '.html') : undefined;
-  const saved = await window.ink.exportHtml({ html, defaultPath });
-  if (saved) flashMessage(`Exported to ${saved}`);
+async function buildExportHtml() {
+  return (await buildExport('html')).html;
 }
 
-async function exportPdf() {
-  const html = await buildExportHtml();
-  const defaultPath = S.path ? S.path.replace(/\.[^.]+$/, '.pdf') : undefined;
-  const saved = await window.ink.exportPdf({ html, defaultPath });
-  if (saved) flashMessage(`Exported to ${saved}`);
+const EXPORT_NAMES = { html: 'HTML', 'html-plain': 'HTML', pdf: 'PDF', png: 'PNG' };
+
+async function exportAs(format, previous = false) {
+  if (!S.view) return;
+  flashMessage(`Exporting ${EXPORT_NAMES[format] || format}…`);
+  try {
+    const { html, settings, meta, vars } = await buildExport(format);
+    const payload = { format, html, docPath: S.path, previous };
+    if (format === 'pdf') {
+      payload.pdf = pdfOptions(settings, vars);
+      payload.info = pdfInfo(meta, vars.title);
+    }
+    if (format === 'png') payload.width = Number(settings.exportImageWidth) || 860;
+    const saved = await window.ink.exportDocument(payload);
+    if (saved) flashMessage(`Exported to ${saved}`);
+  } catch (err) {
+    flashMessage(`Export failed: ${err.message || err}`);
+  }
+}
+
+function exportPrevious() {
+  const last = S.config.lastExport;
+  if (!last || !EXPORT_NAMES[last.format]) {
+    flashMessage('Nothing exported yet — pick a format from File › Export first');
+    return;
+  }
+  return exportAs(last.format, true);
 }
 
 async function copyHtml() {
@@ -2434,12 +2588,16 @@ const commands = {
   'app:closeWindow': () => attemptClose(),
   'app:quit': () => attemptClose(),
   'app:requestClose': () => attemptClose(),
-  'export:html': () => exportHtml(),
-  'export:pdf': () => exportPdf(),
-  'export:print': () => exportPdf(),
+  'export:html': () => exportAs('html'),
+  'export:htmlPlain': () => exportAs('html-plain'),
+  'export:pdf': () => exportAs('pdf'),
+  'export:png': () => exportAs('png'),
+  'export:previous': () => exportPrevious(),
+  'export:print': () => exportAs('pdf'),
   'export:copyHtml': () => copyHtml(),
   'export:copyWeChat': () => copyForWeChat(),
   'export:settings': () => openPrefs('export'),
+  'export:wechatSettings': () => openPrefs('wechat'),
   'help:about': () =>
     window.ink.info({
       message: 'Posemark 0.1.0',
@@ -3124,6 +3282,8 @@ function wireImageDrop() {
 // ---------------------------------------------------------------------------
 async function boot() {
   S.config = await window.ink.getConfig();
+  setLanguage(await window.ink.language());
+  watchDom();
   document.documentElement.style.setProperty('--sidebar-width', `${S.config.sidebarWidth || 240}px`);
   await renderTheme();
 
@@ -3276,6 +3436,11 @@ async function boot() {
     },
     async exportHtml() {
       return buildExportHtml();
+    },
+    // what exportAs() would hand the main process, without the dialog
+    async exportPayload(format) {
+      const { html, settings, meta, vars } = await buildExport(format);
+      return { html, pdf: pdfOptions(settings, vars), info: pdfInfo(meta, vars.title), width: Number(settings.exportImageWidth) || 860 };
     },
     copyWeChat: (dry = true) => copyForWeChat(dry),
     dropImage: (p, pos) => insertImageFromPath(p, pos),

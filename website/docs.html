@@ -1,0 +1,367 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>使用文档 — Posemark</title>
+<meta name="title-zh" content="使用文档 — Posemark">
+<meta name="title-en" content="Documentation — Posemark">
+<meta name="description" content="Posemark 使用文档：编辑、图片、公式、图表、导出、公众号、主题与快捷键。Posemark user guide.">
+<meta property="og:image" content="assets/og.png">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="assets/logo.svg" alt="">Posemark</a>
+    <nav class="nav">
+      <a class="hide-sm" href="./#features"><span lang="zh-CN">功能</span><span lang="en">Features</span></a>
+      <a class="active" href="docs.html"><span lang="zh-CN">文档</span><span lang="en">Docs</span></a>
+      <a href="./#download"><span lang="zh-CN">下载</span><span lang="en">Download</span></a>
+      <a class="hide-sm" href="https://github.com/whyun-pages/posemark">GitHub</a>
+      <button class="lang-toggle" type="button">English</button>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap docs">
+  <nav class="docs-nav">
+    <h4><span lang="zh-CN">入门</span><span lang="en">Basics</span></h4>
+    <a href="#install"><span lang="zh-CN">安装</span><span lang="en">Install</span></a>
+    <a href="#start"><span lang="zh-CN">快速上手</span><span lang="en">Getting started</span></a>
+    <a href="#editing"><span lang="zh-CN">编辑</span><span lang="en">Editing</span></a>
+    <h4><span lang="zh-CN">内容</span><span lang="en">Content</span></h4>
+    <a href="#images"><span lang="zh-CN">图片</span><span lang="en">Images</span></a>
+    <a href="#math"><span lang="zh-CN">公式</span><span lang="en">Math</span></a>
+    <a href="#diagrams"><span lang="zh-CN">图表</span><span lang="en">Diagrams</span></a>
+    <h4><span lang="zh-CN">输出</span><span lang="en">Output</span></h4>
+    <a href="#export"><span lang="zh-CN">导出</span><span lang="en">Export</span></a>
+    <a href="#front-matter"><span lang="zh-CN">front matter 设置</span><span lang="en">Front matter settings</span></a>
+    <a href="#wechat"><span lang="zh-CN">复制到公众号</span><span lang="en">Copy for WeChat</span></a>
+    <h4><span lang="zh-CN">个性化</span><span lang="en">Make it yours</span></h4>
+    <a href="#themes"><span lang="zh-CN">主题与 CSS</span><span lang="en">Themes and CSS</span></a>
+    <a href="#settings"><span lang="zh-CN">设置与草稿</span><span lang="en">Settings and drafts</span></a>
+    <a href="#shortcuts"><span lang="zh-CN">快捷键</span><span lang="en">Shortcuts</span></a>
+    <a href="#faq"><span lang="zh-CN">常见问题</span><span lang="en">FAQ</span></a>
+  </nav>
+
+  <article class="prose">
+    <h1><span lang="zh-CN">使用文档</span><span lang="en">Documentation</span></h1>
+    <p class="lead"><span lang="zh-CN">Posemark 是一款所见即所得的 Markdown 编辑器。这份文档介绍它的主要功能和设置。</span><span lang="en">Posemark is a live-preview Markdown editor. This guide walks through its main features and settings.</span></p>
+
+    <!-- ============================================================ install -->
+    <h2 id="install"><span lang="zh-CN">安装</span><span lang="en">Install</span></h2>
+    <div lang="zh-CN">
+      <ul>
+        <li><b>Windows</b>：推荐从<a href="https://apps.microsoft.com/detail/9PPSNFZN20LQ">微软商店</a>安装，可自动更新；也可以在 <a href="https://github.com/whyun-pages/posemark/releases/latest">GitHub Releases</a> 下载安装程序（<code>.exe</code>）或免安装版（<code>.zip</code>）。</li>
+        <li><b>macOS</b>：下载对应芯片的 <code>.dmg</code>，把 Posemark 拖进“应用程序”。目前安装包未做公证，第一次打开时请右键点击应用并选择“打开”。</li>
+        <li><b>Linux</b>：AppImage 加上可执行权限后直接运行；Debian / Ubuntu 可用 <code>sudo apt install ./Posemark-*.deb</code> 安装。</li>
+      </ul>
+      <p>Windows 安装程序目前没有代码签名，SmartScreen 提示时点“更多信息 › 仍要运行”即可。</p>
+    </div>
+    <div lang="en">
+      <ul>
+        <li><b>Windows</b>: the <a href="https://apps.microsoft.com/detail/9PPSNFZN20LQ">Microsoft Store</a> version updates itself. You can also grab the installer (<code>.exe</code>) or the portable <code>.zip</code> from <a href="https://github.com/whyun-pages/posemark/releases/latest">GitHub Releases</a>.</li>
+        <li><b>macOS</b>: download the <code>.dmg</code> for your chip and drag Posemark into Applications. The build is not notarized yet, so the first time right-click the app and choose Open.</li>
+        <li><b>Linux</b>: make the AppImage executable and run it, or install the deb with <code>sudo apt install ./Posemark-*.deb</code>.</li>
+      </ul>
+      <p>The Windows installer is not code-signed yet; when SmartScreen warns, choose More info › Run anyway.</p>
+    </div>
+
+    <!-- ============================================================ start -->
+    <h2 id="start"><span lang="zh-CN">快速上手</span><span lang="en">Getting started</span></h2>
+    <div lang="zh-CN">
+      <p>用 <b>文件 › 打开文件夹</b>（<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>）打开你存放笔记的文件夹，左侧就是文件树；双击 <code>.md</code> 文件也会直接用 Posemark 打开。</p>
+      <p>直接输入 Markdown 即可：输入 <code># 标题</code> 回车，它立刻就是一个标题。光标所在的那一行会显示原始标记，离开后恢复排版效果。</p>
+      <ul>
+        <li><kbd>Ctrl</kbd>+<kbd>/</kbd>：在实时预览和源代码模式之间切换。</li>
+        <li><kbd>Ctrl</kbd>+<kbd>P</kbd>：按文件名快速打开；<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd>：在整个文件夹中搜索。</li>
+        <li>侧边栏有 <b>文件</b>、<b>大纲</b>、<b>搜索</b> 三个面板；<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> 显示或隐藏侧边栏。</li>
+        <li>一个窗口编辑一个文档，<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> 新建窗口，<kbd>Ctrl</kbd>+<kbd>Tab</kbd> 在窗口间切换。</li>
+      </ul>
+    </div>
+    <div lang="en">
+      <p>Use <b>File › Open Folder</b> (<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>O</kbd>) to open the folder that holds your notes; it appears as a file tree on the left. Double-clicking a <code>.md</code> file opens it in Posemark too.</p>
+      <p>Just type Markdown: <code># Title</code> plus Enter is a heading straight away. The line your caret is on shows its raw markers; move away and it is typeset again.</p>
+      <ul>
+        <li><kbd>Ctrl</kbd>+<kbd>/</kbd> switches between live preview and source code mode.</li>
+        <li><kbd>Ctrl</kbd>+<kbd>P</kbd> opens a file by name; <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>F</kbd> searches the whole folder.</li>
+        <li>The sidebar has <b>Files</b>, <b>Outline</b> and <b>Search</b> panels; <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> shows or hides it.</li>
+        <li>One document per window: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens another, <kbd>Ctrl</kbd>+<kbd>Tab</kbd> cycles through them.</li>
+      </ul>
+    </div>
+    <div class="shot"><img data-shot="editor" src="assets/screenshots/editor-zh.jpg" width="1600" height="840" loading="lazy" alt=""></div>
+
+    <!-- ============================================================ editing -->
+    <h2 id="editing"><span lang="zh-CN">编辑</span><span lang="en">Editing</span></h2>
+    <div lang="zh-CN">
+      <h3>文字与段落</h3>
+      <p>支持加粗、斜体、删除线、<code>==高亮==</code>、<code>H~2~O</code> 下标、<code>X^2^</code> 上标、行内代码和链接。“段落”和“格式”菜单里的命令都有快捷键，例如 <kbd>Ctrl</kbd>+<kbd>1</kbd>～<kbd>6</kbd> 设置标题级别。</p>
+      <h3>表格</h3>
+      <p>点击表格就进入网格编辑：<kbd>Tab</kbd> 到下一格，<kbd>Enter</kbd> 到下一行，在最后一格按 <kbd>Tab</kbd> 会新增一行。右键单元格可以插入、删除行列，以及设置对齐方式。</p>
+      <h3>代码块</h3>
+      <p>用 <code>```语言</code> 开始一个代码块，会按语言高亮。光标进入代码块后显示源码，依然保持高亮。</p>
+      <h3>更多语法</h3>
+      <ul>
+        <li>任务列表 <code>- [ ]</code>，点击复选框即可勾选。</li>
+        <li>GitHub 风格提示块：<code>&gt; [!NOTE]</code>、<code>[!TIP]</code>、<code>[!WARNING]</code> 等。</li>
+        <li>单独一行写 <code>[TOC]</code> 生成目录；<code>[^1]</code> 写脚注；<code>:smile:</code> 输入表情。</li>
+      </ul>
+      <h3>粘贴</h3>
+      <p>从网页、Word 等处复制的富文本会自动转换成 Markdown；<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> 始终粘贴纯文本。</p>
+    </div>
+    <div lang="en">
+      <h3>Text and paragraphs</h3>
+      <p>Bold, italic, strikethrough, <code>==highlight==</code>, <code>H~2~O</code> subscript, <code>X^2^</code> superscript, inline code and links all work. Everything in the Paragraph and Format menus has a shortcut — <kbd>Ctrl</kbd>+<kbd>1</kbd>…<kbd>6</kbd> set the heading level, for example.</p>
+      <h3>Tables</h3>
+      <p>Click a table to edit it as a grid: <kbd>Tab</kbd> moves to the next cell, <kbd>Enter</kbd> to the next row, and <kbd>Tab</kbd> in the last cell adds a row. Right-click a cell to insert or delete rows and columns, or to set the alignment.</p>
+      <h3>Code blocks</h3>
+      <p>Start a block with <code>```language</code> to get highlighting. With the caret inside, you see the source — still highlighted.</p>
+      <h3>More syntax</h3>
+      <ul>
+        <li>Task lists with <code>- [ ]</code>; click a box to tick it.</li>
+        <li>GitHub-style alerts: <code>&gt; [!NOTE]</code>, <code>[!TIP]</code>, <code>[!WARNING]</code> and friends.</li>
+        <li><code>[TOC]</code> on its own line builds a table of contents; <code>[^1]</code> adds a footnote; <code>:smile:</code> inserts an emoji.</li>
+      </ul>
+      <h3>Pasting</h3>
+      <p>Rich text from web pages, Word and the like is converted to Markdown when you paste; <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> always pastes plain text.</p>
+    </div>
+
+    <!-- ============================================================ images -->
+    <h2 id="images"><span lang="zh-CN">图片</span><span lang="en">Images</span></h2>
+    <div lang="zh-CN">
+      <ul>
+        <li>把图片拖进编辑区，或直接粘贴截图，图片会复制到文档旁的 <code>assets/</code> 文件夹，并插入 <code>![](assets/xxx.png)</code>。</li>
+        <li>点击图片出现缩放框，拖动右下角调整大小，宽度会写成 <code>![alt|320](pic.png)</code>。</li>
+        <li>右键图片可以打开、复制、调整缩放比例、移动到其他文件夹、下载网络图片或上传到图床。</li>
+        <li>在 <b>偏好设置 › 图片</b> 里可以改插入方式（复制 / 保留原路径 / 直接上传）、图片文件夹，以及配置 PicGo-Core、PicList 或自定义命令作为上传服务。</li>
+        <li>front matter 中的 <code>typora-copy-images-to</code> 和 <code>typora-root-url</code> 与 Typora 兼容。</li>
+      </ul>
+    </div>
+    <div lang="en">
+      <ul>
+        <li>Drop an image onto the editor, or paste a screenshot: the file is copied into an <code>assets/</code> folder next to the document and <code>![](assets/xxx.png)</code> is inserted.</li>
+        <li>Click an image for a resize frame; dragging the corner writes the width as <code>![alt|320](pic.png)</code>.</li>
+        <li>Right-click an image to open, copy, zoom, move it to another folder, download a remote image or upload it.</li>
+        <li><b>Preferences › Images</b> sets the insert policy (copy / keep the path / upload), the image folder, and an uploader: PicGo-Core, PicList or a custom command.</li>
+        <li><code>typora-copy-images-to</code> and <code>typora-root-url</code> in the front matter work as in Typora.</li>
+      </ul>
+    </div>
+
+    <!-- ============================================================ math -->
+    <h2 id="math"><span lang="zh-CN">公式</span><span lang="en">Math</span></h2>
+    <div lang="zh-CN">
+      <p>行内公式用 <code>$…$</code> 或 <code>\(…\)</code>，独立公式用 <code>$$…$$</code>、<code>\[…\]</code> 或 <code>```math</code> 代码块，由 KaTeX 渲染。<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> 插入公式块，编辑时下方实时显示结果。</p>
+      <ul>
+        <li><b>编号</b>：偏好设置 › Markdown › 公式 可选择不编号、AMS 风格或全部编号；<code>\label{eq:x}</code> 加 <code>\eqref{eq:x}</code> 引用编号。</li>
+        <li>内置 mhchem 化学式 <code>\ce{H2O}</code>，以及 physics 宏包的常用命令（<code>\dv</code>、<code>\abs</code>、<code>\ket</code> 等）。</li>
+      </ul>
+    </div>
+    <div lang="en">
+      <p>Inline math with <code>$…$</code> or <code>\(…\)</code>; display math with <code>$$…$$</code>, <code>\[…\]</code> or a <code>```math</code> fence, rendered by KaTeX. <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>M</kbd> inserts a math block that shows its result live underneath.</p>
+      <ul>
+        <li><b>Numbering</b>: Preferences › Markdown › Math offers none, AMS style or every equation; <code>\label{eq:x}</code> with <code>\eqref{eq:x}</code> refers to the number.</li>
+        <li>mhchem (<code>\ce{H2O}</code>) and the common physics-package commands (<code>\dv</code>, <code>\abs</code>, <code>\ket</code>…) are built in.</li>
+      </ul>
+    </div>
+    <div class="shot"><img data-shot="math" src="assets/screenshots/math-zh.jpg" width="1600" height="840" loading="lazy" alt=""></div>
+
+    <!-- ============================================================ diagrams -->
+    <h2 id="diagrams"><span lang="zh-CN">图表</span><span lang="en">Diagrams</span></h2>
+    <div lang="zh-CN">
+      <p><code>```mermaid</code> 代码块会绘制成 Mermaid 图表，停止输入片刻后自动重绘，语法错误会显示在预览中而不会覆盖你的文字。<code>```sequence</code>（js-sequence-diagrams）和 <code>```flow</code>（flowchart.js）语法也能识别。</p>
+      <p>图表配色跟随编辑器主题，也可以在 偏好设置 › Markdown › 图表 中调整。右键图表可另存为 SVG、PNG 或复制。</p>
+    </div>
+    <div lang="en">
+      <p>A <code>```mermaid</code> fence is drawn as a Mermaid diagram and redrawn shortly after you stop typing; a syntax error shows in the preview instead of replacing your text. <code>```sequence</code> (js-sequence-diagrams) and <code>```flow</code> (flowchart.js) syntax work too.</p>
+      <p>Diagrams follow the editor theme, with options in Preferences › Markdown › Diagrams. Right-click a diagram to save it as SVG or PNG, or copy it.</p>
+    </div>
+<pre><code>```mermaid
+flowchart LR
+  A[Write] --&gt; B[Preview] --&gt; C[Export]
+```</code></pre>
+
+    <!-- ============================================================ export -->
+    <h2 id="export"><span lang="zh-CN">导出</span><span lang="en">Export</span></h2>
+    <div lang="zh-CN">
+      <p><b>文件 › 导出</b> 中可选：</p>
+      <ul>
+        <li><b>HTML</b>：单个自包含文件，主题样式、公式字体、图表都内嵌在内，可选附带可折叠大纲。</li>
+        <li><b>HTML（无样式）</b>：只有 HTML 标记，方便粘贴到其他网站或模板。</li>
+        <li><b>PDF</b>：可设置纸张（A3/A4/A5/B5/Letter 等或自定义尺寸）、横向、边距、页眉页脚、一级标题前分页。</li>
+        <li><b>图片 (PNG)</b>：整篇文档渲染为一张长图，宽度可调。</li>
+        <li><b>使用上次设置导出</b>（<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>E</kbd>）：按上次的格式直接导出到上次的文件夹，不弹对话框。</li>
+      </ul>
+      <p>页眉页脚用 <code>左 | 中 | 右</code> 分成三栏，可使用变量：<code>${title}</code>、<code>${author}</code>、<code>${today}</code>、<code>${pageNo}</code>、<code>${pageCount}</code>，以及 front matter 中的任意键。例如页脚 <code>${title} | | ${pageNo} / ${pageCount}</code>。</p>
+      <p>front matter 里的 <code>title</code>、<code>author</code>、<code>description</code>、<code>keywords</code> 会写入 PDF 的文档属性。导出主题、默认导出文件夹、导出后是否打开文件都在 <b>偏好设置 › 导出</b> 中设置。</p>
+    </div>
+    <div lang="en">
+      <p><b>File › Export</b> offers:</p>
+      <ul>
+        <li><b>HTML</b>: one self-contained file with the theme, math fonts and diagrams inlined, optionally with a collapsible outline.</li>
+        <li><b>HTML (without styles)</b>: bare markup, for pasting into another site or template.</li>
+        <li><b>PDF</b>: paper size (A3/A4/A5/B5/Letter… or a custom size), landscape, margins, header and footer, a page break before every level-1 heading.</li>
+        <li><b>Image (PNG)</b>: the whole document as one long picture at an adjustable width.</li>
+        <li><b>Export with Previous</b> (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>E</kbd>): the last format into the last folder, no dialog.</li>
+      </ul>
+      <p>Headers and footers split into <code>left | center | right</code> and accept <code>${title}</code>, <code>${author}</code>, <code>${today}</code>, <code>${pageNo}</code>, <code>${pageCount}</code> and any front matter key — e.g. a footer of <code>${title} | | ${pageNo} / ${pageCount}</code>.</p>
+      <p><code>title</code>, <code>author</code>, <code>description</code> and <code>keywords</code> from the front matter go into the PDF's document properties. The export theme, default folder and what happens after exporting live in <b>Preferences › Export</b>.</p>
+    </div>
+    <div class="shot"><img data-shot="export" src="assets/screenshots/export-zh.jpg" width="1600" height="840" loading="lazy" alt=""></div>
+
+    <!-- ============================================================ front matter -->
+    <h2 id="front-matter"><span lang="zh-CN">front matter 设置</span><span lang="en">Front matter settings</span></h2>
+    <p><span lang="zh-CN">在文档开头的 YAML front matter 中写下这些键，可以只针对这一篇文档覆盖导出设置：</span><span lang="en">These keys in a document's YAML front matter override the export settings for that document only:</span></p>
+<pre><code>---
+title: 季度报告
+author: 张三
+keywords: [报告, 2026]
+pdf-paper: Letter
+pdf-margin: 20 15
+pdf-footer: ${title} | | ${pageNo} / ${pageCount}
+pdf-h1-page-break: true
+html-outline: true
+---</code></pre>
+    <table>
+      <thead><tr><th><span lang="zh-CN">键</span><span lang="en">Key</span></th><th><span lang="zh-CN">作用</span><span lang="en">Effect</span></th></tr></thead>
+      <tbody>
+        <tr><td><code>export-theme</code></td><td><span lang="zh-CN">导出使用的主题，如 <code>night</code></span><span lang="en">Theme for the export, e.g. <code>night</code></span></td></tr>
+        <tr><td><code>pdf-paper</code></td><td><span lang="zh-CN">纸张：<code>A4</code>、<code>Letter</code> 或 <code>148x210 mm</code></span><span lang="en">Paper: <code>A4</code>, <code>Letter</code> or <code>148x210 mm</code></span></td></tr>
+        <tr><td><code>pdf-landscape</code></td><td><span lang="zh-CN">横向：<code>true</code> / <code>false</code></span><span lang="en">Landscape: <code>true</code> / <code>false</code></span></td></tr>
+        <tr><td><code>pdf-margin</code></td><td><span lang="zh-CN">边距（mm），写法同 CSS：<code>20</code>、<code>20 15</code>、<code>上 右 下 左</code>；也可用 <code>pdf-margin-top</code> 等单独设置</span><span lang="en">Margins in mm, CSS-style: <code>20</code>, <code>20 15</code>, <code>top right bottom left</code>; or <code>pdf-margin-top</code> etc.</span></td></tr>
+        <tr><td><code>pdf-header</code> / <code>pdf-footer</code></td><td><span lang="zh-CN">页眉 / 页脚</span><span lang="en">Header / footer</span></td></tr>
+        <tr><td><code>pdf-h1-page-break</code></td><td><span lang="zh-CN">一级标题前分页</span><span lang="en">Page break before level-1 headings</span></td></tr>
+        <tr><td><code>html-outline</code></td><td><span lang="zh-CN">HTML 附带可折叠大纲</span><span lang="en">Collapsible outline in the HTML</span></td></tr>
+        <tr><td><code>html-head</code> / <code>html-body</code></td><td><span lang="zh-CN">追加到 &lt;head&gt; / &lt;body&gt; 的 HTML，支持 <code>|</code> 多行写法</span><span lang="en">HTML appended to &lt;head&gt; / &lt;body&gt;; <code>|</code> block scalars work</span></td></tr>
+        <tr><td><code>image-width</code></td><td><span lang="zh-CN">导出长图的宽度（px）</span><span lang="en">Width of the PNG export (px)</span></td></tr>
+      </tbody>
+    </table>
+
+    <!-- ============================================================ wechat -->
+    <h2 id="wechat"><span lang="zh-CN">复制到公众号</span><span lang="en">Copy for WeChat</span></h2>
+    <div lang="zh-CN">
+      <p>公众号编辑器会丢弃所有样式表，普通复制粘贴过去只剩光秃秃的文字。<b>文件 › 导出 › 复制到微信公众号</b>（<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd>）会把排版写成行内样式放进剪贴板，直接粘贴到公众号后台即可：</p>
+      <ul>
+        <li>代码保留高亮颜色，表格带边框和表头底色。</li>
+        <li>本地图片内嵌进内容；公式和 Mermaid 图表自动转成图片。</li>
+        <li>公众号里链接不能点击，所以每个链接会加上编号，并在文末列出“参考链接”。</li>
+      </ul>
+      <p>在 <b>偏好设置 › 公众号</b> 中可以调整配色、强调色、二级标题样式、字号、行高、字间距、段间距、首行缩进等，右侧实时预览粘贴后的效果。</p>
+    </div>
+    <div lang="en">
+      <p>WeChat's article editor throws away every stylesheet, so an ordinary copy arrives as bare text. <b>File › Export › Copy for WeChat</b> (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>C</kbd>) puts the formatting on the clipboard as inline styles — paste it straight into the editor:</p>
+      <ul>
+        <li>Code keeps its highlight colours; tables get borders and a shaded header.</li>
+        <li>Local images are embedded; formulas and Mermaid diagrams become images.</li>
+        <li>Links cannot be clicked in WeChat, so each gets a number and the URLs are listed at the end.</li>
+      </ul>
+      <p><b>Preferences › WeChat</b> tunes the colour theme, accent colour, heading style, font size, line height, spacing and first-line indent, with a live preview of the pasted result.</p>
+    </div>
+    <div class="shot"><img data-shot="wechat" src="assets/screenshots/wechat-zh.jpg" width="1600" height="840" loading="lazy" alt=""></div>
+
+    <!-- ============================================================ themes -->
+    <h2 id="themes"><span lang="zh-CN">主题与自定义 CSS</span><span lang="en">Themes and custom CSS</span></h2>
+    <div lang="zh-CN">
+      <p>内置 Default、Night、Pixyll、Whitey、Newsprint 五套主题，在“主题”菜单中切换。<b>偏好设置 › 外观</b> 中开启“跟随系统深色模式”后，可以分别指定浅色和深色主题。</p>
+      <p><b>主题 › 打开主题文件夹</b> 可以放入自己的样式：</p>
+      <ul>
+        <li><code>base.user.css</code>：追加到所有主题；</li>
+        <li><code>&lt;主题名&gt;.user.css</code>：只追加到该主题，如 <code>night.user.css</code>；</li>
+        <li>完整的 <code>&lt;名字&gt;.css</code> 会作为新主题出现在菜单中（文件开头写 <code>/* dark */</code> 标记为深色主题）。</li>
+      </ul>
+    </div>
+    <div lang="en">
+      <p>Default, Night, Pixyll, Whitey and Newsprint ship built in; switch from the Themes menu. With <b>Preferences › Appearance › Follow the system dark mode</b> you choose one theme for light mode and one for dark.</p>
+      <p><b>Themes › Open Theme Folder</b> takes your own styles:</p>
+      <ul>
+        <li><code>base.user.css</code> is added to every theme;</li>
+        <li><code>&lt;theme&gt;.user.css</code> to that theme only, e.g. <code>night.user.css</code>;</li>
+        <li>a whole <code>&lt;name&gt;.css</code> becomes a theme of its own (start it with <code>/* dark */</code> to mark it dark).</li>
+      </ul>
+    </div>
+    <div class="shot"><img data-shot="dark" src="assets/screenshots/dark-zh.jpg" width="1600" height="840" loading="lazy" alt=""></div>
+
+    <!-- ============================================================ settings -->
+    <h2 id="settings"><span lang="zh-CN">设置与草稿</span><span lang="en">Settings and drafts</span></h2>
+    <div lang="zh-CN">
+      <ul>
+        <li><b>界面语言</b>：偏好设置 › 通用 › 语言，可选跟随系统、English 或简体中文，切换后立即生效。</li>
+        <li><b>自动保存</b>：偏好设置 › 通用 › 保存。</li>
+        <li><b>未保存草稿</b>：有未保存修改时内容会自动备份，意外关闭或断电后，用 文件 › 恢复未保存的草稿 找回。</li>
+        <li><b>启动行为</b>：新建空白文档、恢复上次的文件夹、恢复上次的文件，或打开固定文件夹。</li>
+        <li>智能标点、自动补全括号与 Markdown 符号、拼写检查等都可以在 偏好设置 › 编辑器 中开关。</li>
+      </ul>
+    </div>
+    <div lang="en">
+      <ul>
+        <li><b>Interface language</b>: Preferences › General › Language — follow the system, English or Simplified Chinese; switching applies at once.</li>
+        <li><b>Auto save</b>: Preferences › General › Saving.</li>
+        <li><b>Unsaved drafts</b>: unsaved edits are backed up as you type; after a crash or power cut, File › Recover Unsaved Drafts brings them back.</li>
+        <li><b>On launch</b>: a new document, the last folder, the last file, or a fixed folder.</li>
+        <li>Smart punctuation, auto-pairing of brackets and Markdown markers, and spell check are switches in Preferences › Editor.</li>
+      </ul>
+    </div>
+
+    <!-- ============================================================ shortcuts -->
+    <h2 id="shortcuts"><span lang="zh-CN">快捷键</span><span lang="en">Shortcuts</span></h2>
+    <p><span lang="zh-CN">macOS 上用 <kbd>⌘</kbd> 代替 <kbd>Ctrl</kbd>。</span><span lang="en">On macOS, use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>.</span></p>
+    <table>
+      <thead><tr><th><span lang="zh-CN">操作</span><span lang="en">Action</span></th><th><span lang="zh-CN">快捷键</span><span lang="en">Keys</span></th></tr></thead>
+      <tbody>
+        <tr><td><span lang="zh-CN">新建 / 打开 / 保存 / 另存为</span><span lang="en">New / Open / Save / Save As</span></td><td><kbd>Ctrl+N</kbd> <kbd>Ctrl+O</kbd> <kbd>Ctrl+S</kbd> <kbd>Ctrl+Shift+S</kbd></td></tr>
+        <tr><td><span lang="zh-CN">新建窗口 / 切换窗口</span><span lang="en">New window / Next window</span></td><td><kbd>Ctrl+Shift+N</kbd> <kbd>Ctrl+Tab</kbd></td></tr>
+        <tr><td><span lang="zh-CN">快速打开</span><span lang="en">Quick open</span></td><td><kbd>Ctrl+P</kbd></td></tr>
+        <tr><td><span lang="zh-CN">查找 / 替换 / 在文件夹中查找</span><span lang="en">Find / Replace / Find in folder</span></td><td><kbd>Ctrl+F</kbd> <kbd>Ctrl+H</kbd> <kbd>Ctrl+Shift+F</kbd></td></tr>
+        <tr><td><span lang="zh-CN">源代码模式</span><span lang="en">Source code mode</span></td><td><kbd>Ctrl+/</kbd></td></tr>
+        <tr><td><span lang="zh-CN">专注模式 / 打字机模式</span><span lang="en">Focus / Typewriter mode</span></td><td><kbd>F8</kbd> <kbd>F9</kbd></td></tr>
+        <tr><td><span lang="zh-CN">一至六级标题 / 正文</span><span lang="en">Heading 1–6 / Paragraph</span></td><td><kbd>Ctrl+1…6</kbd> <kbd>Ctrl+0</kbd></td></tr>
+        <tr><td><span lang="zh-CN">加粗 / 斜体 / 行内代码 / 高亮</span><span lang="en">Bold / Italic / Code / Highlight</span></td><td><kbd>Ctrl+B</kbd> <kbd>Ctrl+I</kbd> <kbd>Ctrl+Shift+`</kbd> <kbd>Ctrl+Shift+H</kbd></td></tr>
+        <tr><td><span lang="zh-CN">链接 / 图片</span><span lang="en">Link / Image</span></td><td><kbd>Ctrl+K</kbd> <kbd>Ctrl+Shift+I</kbd></td></tr>
+        <tr><td><span lang="zh-CN">表格 / 公式块</span><span lang="en">Table / Math block</span></td><td><kbd>Ctrl+T</kbd> <kbd>Ctrl+Shift+M</kbd></td></tr>
+        <tr><td><span lang="zh-CN">侧边栏 / 大纲 / 搜索 / 文件</span><span lang="en">Sidebar / Outline / Search / Files</span></td><td><kbd>Ctrl+Shift+L</kbd> <kbd>Ctrl+Shift+1</kbd> <kbd>Ctrl+Shift+2</kbd> <kbd>Ctrl+Shift+3</kbd></td></tr>
+        <tr><td><span lang="zh-CN">字数统计</span><span lang="en">Word count</span></td><td><kbd>Ctrl+Shift+W</kbd></td></tr>
+        <tr><td><span lang="zh-CN">粘贴为纯文本</span><span lang="en">Paste as plain text</span></td><td><kbd>Ctrl+Shift+V</kbd></td></tr>
+        <tr><td><span lang="zh-CN">复制到公众号 / 使用上次设置导出</span><span lang="en">Copy for WeChat / Export with Previous</span></td><td><kbd>Ctrl+Alt+C</kbd> <kbd>Ctrl+Alt+E</kbd></td></tr>
+      </tbody>
+    </table>
+
+    <!-- ============================================================ faq -->
+    <h2 id="faq"><span lang="zh-CN">常见问题</span><span lang="en">FAQ</span></h2>
+    <div lang="zh-CN">
+      <h3>Posemark 会上传我的文档吗？</h3>
+      <p>不会。Posemark 没有账号、没有遥测，文档只保存在你自己的电脑上。只有在你配置了图床上传、或文档里引用了网络图片时才会联网，详见<a href="privacy.html">隐私政策</a>。</p>
+      <h3>和 Typora 的文件兼容吗？</h3>
+      <p>兼容。Posemark 读写的都是普通 Markdown 文件，也识别 Typora 的 <code>typora-copy-images-to</code>、<code>typora-root-url</code>、图片缩放写法和 <code>[TOC]</code>。</p>
+      <h3>遇到问题怎么反馈？</h3>
+      <p>请在 <a href="https://github.com/whyun-pages/posemark/issues">GitHub Issues</a> 提交，附上系统版本和复现步骤会很有帮助。</p>
+    </div>
+    <div lang="en">
+      <h3>Does Posemark upload my documents?</h3>
+      <p>No. There is no account and no telemetry; your documents stay on your computer. The app only goes online for images your document links to, or for uploads you set up yourself — see the <a href="privacy.html">privacy policy</a>.</p>
+      <h3>Is it compatible with Typora files?</h3>
+      <p>Yes. Posemark reads and writes plain Markdown and understands Typora's <code>typora-copy-images-to</code>, <code>typora-root-url</code>, image sizing and <code>[TOC]</code>.</p>
+      <h3>Where do I report a problem?</h3>
+      <p>Open an issue on <a href="https://github.com/whyun-pages/posemark/issues">GitHub</a>; your OS version and the steps to reproduce help a lot.</p>
+    </div>
+  </article>
+</div>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>© 2026 Posemark · <span lang="zh-CN">MIT 许可</span><span lang="en">MIT License</span></span>
+    <nav>
+      <a href="./"><span lang="zh-CN">首页</span><span lang="en">Home</span></a>
+      <a href="privacy.html"><span lang="zh-CN">隐私政策</span><span lang="en">Privacy</span></a>
+      <a href="https://github.com/whyun-pages/posemark/issues"><span lang="zh-CN">反馈问题</span><span lang="en">Report an issue</span></a>
+      <a href="https://github.com/whyun-pages/posemark">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

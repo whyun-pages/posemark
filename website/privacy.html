@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>隐私政策 — Posemark</title>
+<meta name="title-zh" content="隐私政策 — Posemark">
+<meta name="title-en" content="Privacy Policy — Posemark">
+<meta name="description" content="Posemark 不收集任何个人信息。Posemark collects no personal information.">
+<link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+<link rel="icon" href="assets/favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <a class="logo" href="./"><img src="assets/logo.svg" alt="">Posemark</a>
+    <nav class="nav">
+      <a href="docs.html"><span lang="zh-CN">文档</span><span lang="en">Docs</span></a>
+      <a href="./#download"><span lang="zh-CN">下载</span><span lang="en">Download</span></a>
+      <a class="hide-sm" href="https://github.com/whyun-pages/posemark">GitHub</a>
+      <button class="lang-toggle" type="button">English</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap" style="padding-top:48px;padding-bottom:80px">
+  <article class="prose" style="margin:0 auto">
+    <div lang="zh-CN">
+      <h1>隐私政策</h1>
+      <p class="lead">生效日期：2026 年 10 月 29 日 · 适用于 Posemark 0.1.0 及以后版本</p>
+<p>Posemark（以下简称“本应用”）是一款在你电脑本地运行的 Markdown 编辑器，由 yunnysunny 开发并以 MIT 许可证开源。</p>
+<h2>我们不收集任何个人信息</h2>
+<ul>
+<li>本应用<b>没有账号系统、没有广告、没有遥测、没有崩溃上报、没有统计分析</b>，不会向开发者或任何第三方发送你的文档、使用数据或设备信息。</li>
+<li>开发者没有运营任何接收本应用数据的服务器。</li>
+</ul>
+<h2>本应用在你的电脑上保存哪些数据</h2>
+<p>所有数据都只保存在你自己的电脑上：</p>
+<ul>
+<li><b>你的文档和图片</b>：保存在你自己选择的位置。拖入或粘贴的图片默认复制到文档旁的 <code>assets/</code> 文件夹；没有打开文档时保存到“图片/posemark”文件夹。</li>
+<li><b>设置</b>：保存在本应用的用户数据目录（<code>userData</code>）下的 <code>config.json</code>，包括偏好设置、最近打开的文件和文件夹、固定的文件夹、界面状态（侧边栏、主题、上次打开的文件夹等）。你可以在“偏好设置 › 通用”中关闭最近文件记录。</li>
+<li><b>未保存草稿备份</b>：文档有未保存修改时，内容会自动备份到用户数据目录下的 <code>drafts/</code> 文件夹，保存后即删除；你可以通过“文件 › 恢复未保存的草稿…”查看、恢复或丢弃它们。</li>
+<li><b>自定义主题</b>：用户数据目录下的 <code>themes/</code> 文件夹。</li>
+<li>导出 PDF 等操作会在系统临时目录写入临时文件，完成后删除。</li>
+</ul>
+<p>通过 Microsoft Store 安装时，用户数据目录由 Windows 为本应用单独隔离保存，卸载本应用时会一并删除。</p>
+<h2>本应用什么时候会联网</h2>
+<p>本应用的核心编辑功能完全离线可用。只有在以下情况才会发生网络访问，且都由你的文档内容或你的操作触发：</p>
+<ol>
+<li><b>显示网络图片</b>：如果你的文档引用了 <code>http(s)://</code> 图片，本应用会像浏览器一样从该地址加载图片以便显示。图片所在的服务器会因此看到你的 IP 地址等常规请求信息。</li>
+<li><b>下载网络图片</b>：你在图片右键菜单中选择“下载”，或执行“全部移动/复制图片到…”时，本应用会下载对应的网络图片并保存到本地。</li>
+<li><b>上传图片（默认关闭）</b>：只有你在“偏好设置 › 图片”中自己配置了上传工具后才会上传。本应用支持：
+<ul><li><b>PicGo-Core</b>：调用你电脑上安装的 <code>picgo</code> 命令；</li>
+<li><b>PicList</b>：向你填写的 PicList 服务地址（默认是本机 <code>http://127.0.0.1:36677</code>）发送文件路径；</li>
+<li><b>自定义命令</b>：运行你填写的命令，并把图片文件路径作为参数传给它。</li></ul>图片会被这些工具上传到<b>你在工具中配置的图床/存储服务</b>，其数据处理遵循该服务自己的隐私政策，与本应用开发者无关。“测试上传”按钮会上传一张 1×1 像素的测试图片。</li>
+<li><b>打开链接</b>：你点击文档中的 <code>http(s)</code> / <code>mailto</code> 链接时，本应用会交给系统默认浏览器或邮件程序打开，之后的行为由该程序决定。</li>
+<li><b>拼写检查</b>：拼写检查使用 Windows 系统自带的拼写检查服务；对于系统不支持的语言，Electron/Chromium 可能会从 Google 的服务器下载拼写词典文件（只下载词典，不上传你的文本）。</li>
+</ol>
+<p>本应用不会把你的文档内容发送到上述以外的任何地方。</p>
+<h2>儿童隐私</h2>
+<p>本应用不收集任何人的个人信息，包括 13 岁以下儿童。</p>
+<h2>政策变更</h2>
+<p>如本政策发生变更，会更新本页面并修改上方的生效日期。</p>
+<h2>联系方式</h2>
+<p>问题或反馈：<a href="https://github.com/whyun-pages/posemark/issues">https://github.com/whyun-pages/posemark/issues</a></p>
+    </div>
+    <div lang="en">
+      <h1>Privacy Policy</h1>
+      <p class="lead">Effective October 29, 2026 · Applies to Posemark 0.1.0 and later</p>
+<p>Posemark ("the app") is a Markdown editor that runs locally on your computer. It is developed by yunnysunny and released as open source under the MIT License.</p>
+<h2>We do not collect personal information</h2>
+<ul>
+<li>The app has <b>no accounts, no ads, no telemetry, no crash reporting and no analytics</b>. It does not send your documents, usage data or device information to the developer or to any third party.</li>
+<li>The developer does not operate any server that receives data from the app.</li>
+</ul>
+<h2>Data the app stores on your computer</h2>
+<p>Everything stays on your own computer:</p>
+<ul>
+<li><b>Your documents and images</b> are saved where you choose. Images you drop or paste are copied into an <code>assets/</code> folder next to the document by default, or into <code>Pictures/posemark</code> when no document is open.</li>
+<li><b>Settings</b> are stored in <code>config.json</code> in the app's user data folder (<code>userData</code>): preferences, recent files and folders, pinned folders and UI state (sidebar, theme, last folder). Recording of recent files can be turned off in Preferences › General.</li>
+<li><b>Unsaved-draft backups</b>: while a document has unsaved changes its content is mirrored into the <code>drafts/</code> folder in the user data folder and removed once you save. File › Recover Unsaved Drafts… lets you review, restore or discard them.</li>
+<li><b>Custom themes</b> live in the <code>themes/</code> folder in the user data folder.</li>
+<li>Some operations, such as PDF export, write temporary files to the system temp folder and delete them afterwards.</li>
+</ul>
+<p>When installed from the Microsoft Store, Windows keeps the user data folder in a location private to the app and removes it when the app is uninstalled.</p>
+<h2>When the app connects to the internet</h2>
+<p>All core editing works offline. Network access happens only in these cases, each triggered by your document or by your own action:</p>
+<ol>
+<li><b>Displaying remote images</b>: if your document references an <code>http(s)://</code> image, the app loads it from that address to display it, as a web browser would. That server sees ordinary request information such as your IP address.</li>
+<li><b>Downloading remote images</b>: when you choose Download in the image context menu, or run Move/Copy All Images To…, the app downloads those images and saves them locally.</li>
+<li><b>Uploading images (off by default)</b>: only if you configure an uploader yourself in Preferences › Images:
+<ul><li><b>PicGo-Core</b>: runs the <code>picgo</code> command installed on your computer;</li>
+<li><b>PicList</b>: sends the file paths to the PicList server address you enter (by default <code>http://127.0.0.1:36677</code> on your own computer);</li>
+<li><b>Custom command</b>: runs the command you enter, passing the image file paths as arguments.</li></ul>These tools upload the images to <b>the image hosting or storage service you configured in them</b>; that service's own privacy policy applies, and the developer of this app has no access to it. The "Test Upload" button uploads a 1×1 pixel test image.</li>
+<li><b>Opening links</b>: clicking an <code>http(s)</code> or <code>mailto</code> link hands it to your default browser or mail app.</li>
+<li><b>Spell checking</b> uses the Windows spell checker. For languages the system does not support, Electron/Chromium may download dictionary files from Google's servers (dictionaries only; your text is not uploaded).</li>
+</ol>
+<p>The app does not send your document content anywhere else.</p>
+<h2>Children's privacy</h2>
+<p>The app collects no personal information from anyone, including children under 13.</p>
+<h2>Changes</h2>
+<p>If this policy changes, this page will be updated and the effective date above revised.</p>
+<h2>Contact</h2>
+<p>Questions or feedback: <a href="https://github.com/whyun-pages/posemark/issues">https://github.com/whyun-pages/posemark/issues</a></p>
+    </div>
+  </article>
+</main>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <span>© 2026 Posemark · <span lang="zh-CN">MIT 许可</span><span lang="en">MIT License</span></span>
+    <nav>
+      <a href="./"><span lang="zh-CN">首页</span><span lang="en">Home</span></a>
+      <a href="docs.html"><span lang="zh-CN">文档</span><span lang="en">Docs</span></a>
+      <a href="https://github.com/whyun-pages/posemark">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="site.js"></script>
+</body>
+</html>

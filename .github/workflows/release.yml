@@ -43,3 +43,42 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # builds are unsigned for now
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+  # Microsoft Store package (MSIX/AppX). Not attached to the GitHub Release: an unsigned .appx
+  # cannot be installed by double-click; it is uploaded to Partner Center, which signs it.
+  # Package identity comes from the repository variables APPX_IDENTITY_NAME, APPX_PUBLISHER and
+  # APPX_PUBLISHER_DISPLAY_NAME (Partner Center › Product identity); package.json holds the same defaults.
+  store:
+    runs-on: windows-latest
+    env:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+
+      - name: Package for the Microsoft Store
+        shell: bash
+        run: |
+          args=()
+          [ -n "$APPX_IDENTITY_NAME" ] && args+=("-c.appx.identityName=$APPX_IDENTITY_NAME")
+          [ -n "$APPX_PUBLISHER" ] && args+=("-c.appx.publisher=$APPX_PUBLISHER")
+          [ -n "$APPX_PUBLISHER_DISPLAY_NAME" ] && args+=("-c.appx.publisherDisplayName=$APPX_PUBLISHER_DISPLAY_NAME")
+          pnpm exec electron-builder --win appx --x64 --publish never -c.toolsets.winCodeSign=1.1.0 "${args[@]}"
+        env:
+          APPX_IDENTITY_NAME: ${{ vars.APPX_IDENTITY_NAME }}
+          APPX_PUBLISHER: ${{ vars.APPX_PUBLISHER }}
+          APPX_PUBLISHER_DISPLAY_NAME: ${{ vars.APPX_PUBLISHER_DISPLAY_NAME }}
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Posemark-${{ github.ref_name }}-store
+          path: release/*.appx
+          if-no-files-found: error

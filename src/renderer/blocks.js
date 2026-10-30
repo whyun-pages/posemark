@@ -8,6 +8,7 @@ import { highlightCode, isDiagramLang } from './syntax.js';
 import { ctx, resolveSrc, parseImageTag } from './paths.js';
 import { diagramSource } from './diagrams.js';
 import { renderTex, prepareTex } from './math.js';
+import { tr } from './i18n.js';
 
 export { highlightCode, isDiagramLang };
 export { ctx };
@@ -745,7 +746,7 @@ export class EditableTableWidget extends WidgetType {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'md-tbl-item' + (on ? ' on' : '');
-        b.textContent = label;
+        b.textContent = tr(label);
         b.disabled = !!disabled;
         b.addEventListener('mousedown', (e) => e.preventDefault());
         b.addEventListener('click', () => {
@@ -793,11 +794,11 @@ export class EditableTableWidget extends WidgetType {
     const hint = document.createElement('span');
     hint.className = 'md-table-hint';
     const hintText = document.createElement('span');
-    hintText.textContent = 'Tab next cell · Enter next row · Esc done · right-click for rows/columns';
+    hintText.textContent = tr('Tab next cell · Enter next row · Esc done · right-click for rows/columns');
     const menuBtn = document.createElement('button');
     menuBtn.type = 'button';
     menuBtn.className = 'md-table-menu-btn';
-    menuBtn.title = 'Rows, columns, alignment';
+    menuBtn.title = tr('Rows, columns, alignment');
     menuBtn.textContent = '⋮';
     menuBtn.addEventListener('mousedown', (e) => e.preventDefault());
     menuBtn.addEventListener('click', (e) => {
@@ -1021,7 +1022,7 @@ export class DiagramLivePreviewWidget extends WidgetType {
 
   toDOM() {
     const { wrap, body } = previewShell('md-live-diagram', 'diagram');
-    body.textContent = 'Rendering…';
+    body.textContent = tr('Rendering…');
     body.classList.add('pending');
     // Re-render only after a pause: mermaid parsing is async and throws on
     // half-typed input, so keep the last good picture on screen meanwhile.
@@ -1074,7 +1075,7 @@ export class ImageLivePreviewWidget extends WidgetType {
       if (spec.title) img.title = spec.title;
       img.addEventListener('error', () => {
         fig.classList.add('error');
-        fig.textContent = `missing: ${spec.src}`;
+        fig.textContent = tr(`missing: ${spec.src}`);
       });
       fig.appendChild(img);
       const sizeNote = spec.width ? ` · ${spec.width}px` : spec.zoom ? ` · zoom ${spec.zoom}` : '';
@@ -1137,7 +1138,7 @@ export class DiagramWidget extends WidgetType {
     div.className = 'md-block md-diagram';
     const holder = document.createElement('div');
     holder.className = 'md-diagram-holder';
-    holder.textContent = 'Rendering diagram…';
+    holder.textContent = tr('Rendering diagram…');
     div.appendChild(holder);
     bindClick(div, view, this.block.from + 3);
     mermaid
@@ -1321,7 +1322,7 @@ export class VideoWidget extends WidgetType {
     if (this.spec.attrs.poster) media.poster = resolveSrc(this.spec.attrs.poster);
     media.addEventListener('error', () => {
       wrap.classList.add('error');
-      wrap.textContent = `missing: ${this.spec.src}`;
+      wrap.textContent = tr(`missing: ${this.spec.src}`);
     });
     wrap.appendChild(media);
     wrap.addEventListener('dblclick', (e) => {
@@ -1353,7 +1354,7 @@ function openImageFrame(view, span, img, from, to) {
   span.classList.add('resizing');
   const handle = document.createElement('span');
   handle.className = 'md-img-handle';
-  handle.title = 'Drag to resize — double-click the image to edit its Markdown';
+  handle.title = tr('Drag to resize — double-click the image to edit its Markdown');
   span.appendChild(handle);
 
   const off = (e) => {
@@ -1417,14 +1418,14 @@ export class TocWidget extends WidgetType {
     nav.className = 'md-block md-toc';
     const title = document.createElement('div');
     title.className = 'md-toc-title';
-    title.textContent = 'Table of Contents';
+    title.textContent = tr('Table of Contents');
     nav.appendChild(title);
 
     const items = this.block.headings || [];
     if (!items.length) {
       const empty = document.createElement('div');
       empty.className = 'md-toc-empty';
-      empty.textContent = 'No headings yet';
+      empty.textContent = tr('No headings yet');
       nav.appendChild(empty);
       return nav;
     }

@@ -542,9 +542,25 @@ export function splitFrontMatter(source) {
   const m = /^\uFEFF?---\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(source);
   if (!m) return { body: source, meta: null };
   const meta = {};
-  for (const line of m[1].split(/\r?\n/)) {
-    const kv = /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/.exec(line);
-    if (kv) meta[kv[1].toLowerCase()] = kv[2].replace(/^["']|["']$/g, '').trim();
+  const lines = m[1].split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const kv = /^([A-Za-z0-9_-]+)\s*:\s*(.*)$/.exec(lines[i]);
+    if (!kv) continue;
+    const key = kv[1].toLowerCase();
+    const value = kv[2].trim();
+    // `key: |` / `key: >` block scalar, or `key:` followed by a `- item` list (flattened to "a, b")
+    const nested = [];
+    while (i + 1 < lines.length && (/^\s+\S/.test(lines[i + 1]) || (value === '' && /^-\s/.test(lines[i + 1])))) nested.push(lines[++i]);
+    if (/^[|>][+-]?$/.test(value)) {
+      const indents = nested.filter((l) => l.trim()).map((l) => /^\s*/.exec(l)[0].length);
+      const indent = indents.length ? Math.min(...indents) : 0;
+      const text = nested.map((l) => l.slice(indent));
+      meta[key] = (value[0] === '>' ? text.join(' ') : text.join('\n')).trim();
+    } else if (value === '' && nested.length && nested.every((l) => /^\s*-\s/.test(l))) {
+      meta[key] = nested.map((l) => l.replace(/^\s*-\s*/, '').replace(/^["']|["']$/g, '').trim()).join(', ');
+    } else {
+      meta[key] = value.replace(/^["']|["']$/g, '').trim();
+    }
   }
   return { body: source.slice(m[0].length), meta };
 }
@@ -572,20 +588,20 @@ export function renderFragment(source, env = {}) {
   return html;
 }
 
-export function buildStandaloneHtml({ title, bodyHtml, css, bodyClass = '' }) {
+// `css` empty → no <style> at all (HTML without styles); `head` / `beforeBody` / `afterBody` are
+// raw HTML (the user's additions, the outline).
+export function buildStandaloneHtml({ title, bodyHtml, css, bodyClass = '', head = '', beforeBody = '', afterBody = '' }) {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${mdit.utils.escapeHtml(title || 'Untitled')}</title>
-<style>
-${css}
-</style>
-</head>
-<body class="${bodyClass}">
-<div class="markdown-body">
+${css ? `<style>\n${css}\n</style>\n` : ''}${head ? `${head}\n` : ''}</head>
+<body${bodyClass ? ` class="${bodyClass}"` : ''}>
+${beforeBody ? `${beforeBody}\n` : ''}<div class="markdown-body">
 ${bodyHtml}
 </div>
-</body>
+${afterBody ? `${afterBody}\n` : ''}</body>
 </html>`;
 }
