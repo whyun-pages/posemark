@@ -361,20 +361,59 @@ async function reloadFromDisk() {
   flashMessage(`Reloaded ${basename(S.path)} (changed on disk)`);
 }
 
+let externalPrompt = false; // one "reload or keep" dialog at a time
 async function checkExternalChange() {
-  if (!S.path) return;
+  if (!S.path || externalPrompt) return;
   const st = await window.ink.stat(S.path);
   if (!st) {
     flashMessage(`${basename(S.path)} was moved or deleted`);
     return;
   }
   if (!S.mtime || Math.abs(st.mtime - S.mtime) < 1) return;
-  if (S.dirty || S.config.reloadOnExternalChange === false) {
+  if (S.config.reloadOnExternalChange === false) {
     S.mtime = st.mtime;
     flashMessage(`${basename(S.path)} changed on disk — your unsaved edits are kept`);
     return;
   }
-  await reloadFromDisk();
+  if (!S.dirty) {
+    await reloadFromDisk();
+    return;
+  }
+  // unsaved edits here and a different file on disk: the next save would overwrite the other
+  // program's work, so ask. Identical content just means the edits are already on disk.
+  let disk;
+  try {
+    disk = await window.ink.readFile(S.path);
+  } catch {
+    return;
+  }
+  if (disk.content === S.view.state.doc.toString()) {
+    S.mtime = disk.mtime || st.mtime;
+    S.dirty = false;
+    await clearDraft();
+    updateTitle();
+    return;
+  }
+  externalPrompt = true;
+  let res;
+  try {
+    res = await window.ink.confirm({
+      type: 'warning',
+      message: `“${basename(S.path)}” changed on disk`,
+      detail: 'Another program modified it while you have unsaved edits here. Reload the file from disk, or keep your edits? Keeping them overwrites the file on the next save.',
+      buttons: ['Reload from Disk', 'Keep My Edits'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+  } finally {
+    externalPrompt = false;
+  }
+  if (res === 0) {
+    await reloadFromDisk();
+    return;
+  }
+  S.mtime = (await window.ink.stat(S.path))?.mtime || st.mtime;
+  flashMessage(`${basename(S.path)} changed on disk — your unsaved edits are kept`);
 }
 
 async function maybeSaveBeforeSwitch() {
@@ -485,9 +524,16 @@ async function restoreDraft(d) {
   S.view.focus();
 }
 
-const scheduleAutoSave = debounce(async () => {
-  if (S.config.autoSave && S.path && S.dirty) await save();
-}, 900);
+// Auto save: write the file `autoSaveDelay` ms after the last edit (Preferences › General › Saving).
+let autoSaveTimer = null;
+function scheduleAutoSave() {
+  clearTimeout(autoSaveTimer);
+  if (!S.config.autoSave) return;
+  const delay = Math.min(60000, Math.max(200, Number(S.config.autoSaveDelay) || 900));
+  autoSaveTimer = setTimeout(async () => {
+    if (S.config.autoSave && S.path && S.dirty) await save();
+  }, delay);
+}
 
 // ---------------------------------------------------------------------------
 // status bar + outline
@@ -1607,6 +1653,7 @@ const PREF_SECTIONS = [
         title: 'Saving',
         fields: [
           { key: 'autoSave', label: 'Auto save', type: 'bool', hint: 'Save the current file shortly after you stop typing' },
+          { key: 'autoSaveDelay', label: 'Auto save delay (ms)', type: 'number', min: 200, max: 60000, hint: 'How long after the last edit the file is written' },
           { key: 'confirmOnClose', label: 'Ask before closing with unsaved changes', type: 'bool' },
           {
             key: 'recoverDrafts',
@@ -1626,7 +1673,7 @@ const PREF_SECTIONS = [
             key: 'reloadOnExternalChange',
             label: 'Reload the open file when it changes on disk',
             type: 'bool',
-            hint: 'Only while it has no unsaved edits',
+            hint: 'With unsaved edits you are asked whether to reload or keep them',
           },
           {
             key: 'recordRecent',
@@ -2214,6 +2261,8 @@ async function openPrefs(section) {
 async function setPref(key, value) {
   S.config = await window.ink.setConfig({ [key]: value });
   applyRuntimeConfig();
+  // switching auto save on should not leave the current edits waiting for the next keystroke
+  if (key === 'autoSave' && value && S.path && S.dirty) await save();
 }
 
 const PREVIEW_KEYS = ['emoji', 'githubAlerts', 'strictMode', 'inlineMath', 'lineNumbersInCode', 'codeWrap', 'mathNumbering', 'mathPhysics', 'mermaidTheme', 'mermaidSequenceNumbers', 'mermaidFlowchartCurve'];
