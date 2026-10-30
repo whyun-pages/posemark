@@ -40,7 +40,7 @@ html { scroll-behavior: smooth; scroll-padding-top: 76px; }
 body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.7 var(--font); -webkit-font-smoothing: antialiased; }
 a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
-img { max-width: 100%; display: block; }
+img { max-width: 100%; height: auto; display: block; }
 code { font-family: var(--mono); font-size: .88em; background: var(--code-bg); padding: 2px 6px; border-radius: 5px; }
 kbd { font-family: var(--mono); font-size: .82em; padding: 2px 7px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; background: var(--bg-card); white-space: nowrap; }
 .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
