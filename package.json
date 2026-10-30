@@ -99,6 +99,12 @@
             "x64"
           ]
         }
+      ],
+      "extraFiles": [
+        {
+          "from": "build/bin/posemark.cmd",
+          "to": "bin/posemark.cmd"
+        }
       ]
     },
     "appx": {
@@ -132,7 +138,13 @@
           ]
         }
       ],
-      "category": "public.app-category.productivity"
+      "category": "public.app-category.productivity",
+      "extraResources": [
+        {
+          "from": "build/bin/posemark",
+          "to": "bin/posemark"
+        }
+      ]
     },
     "linux": {
       "icon": "build/icon.png",

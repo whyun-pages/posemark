@@ -75,6 +75,7 @@ contextBridge.exposeInMainWorld('ink', {
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
   openPath: (p) => ipcRenderer.invoke('shell:openPath', p),
   closeWindow: () => ipcRenderer.invoke('app:close'),
+  installShellCommand: () => ipcRenderer.invoke('app:installShellCommand'),
   showAppMenu: (x, y) => ipcRenderer.invoke('app:showMenu', { x, y }),
   confirm: (payload) => ipcRenderer.invoke('app:confirm', payload),
   info: (payload) => ipcRenderer.invoke('app:info', payload),

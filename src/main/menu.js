@@ -91,6 +91,7 @@ function buildMenu(opts) {
         },
         { type: 'separator' },
         item('Preferences…', 'app:preferences', 'CmdOrCtrl+,'),
+        ...(isMac ? [item('Install “posemark” Shell Command', 'app:installShellCommand')] : []),
         { type: 'separator' },
         isMac ? { role: 'close' } : item('Close', 'app:closeWindow', 'CmdOrCtrl+W'),
         ...(isMac ? [] : [item('Quit', 'app:quit', 'CmdOrCtrl+Q')]),

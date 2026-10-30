@@ -6,7 +6,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { Store } = require('./store');
-const { parseLaunchArgs } = require('./launch-args');
+const { parseCli, helpText } = require('./cli-args');
 const BUILTIN_THEMES = require('./themes');
 const { buildMenu } = require('./menu');
 const { Drafts, draftId } = require('./drafts');
@@ -94,6 +94,7 @@ function createWindow(initial = {}) {
       nodeIntegration: false,
       sandbox: false,
       spellcheck: true,
+      backgroundThrottling: !initial.hidden, // a CLI export window is never shown
     },
   });
 
@@ -116,7 +117,7 @@ function createWindow(initial = {}) {
   win.loadFile(path.join(__dirname, '../../dist/index.html'));
 
   win.once('ready-to-show', () => {
-    win.show();
+    if (!initial.hidden) win.show();
     if (isDev) win.webContents.openDevTools({ mode: 'detach' });
     if (isFirst) installVerificationModes(win, entry);
   });
@@ -137,6 +138,7 @@ function createWindow(initial = {}) {
   });
 
   win.on('closed', () => {
+    if (initial.waitToken) releaseWaitToken(initial.waitToken); // `posemark --wait` returns
     stopWatch(entry);
     if (entry.state.path) rememberClosed(entry.state.path);
     if (entry.draft) liveDrafts.delete(entry.draft);
@@ -1004,7 +1006,89 @@ function uploaderOptions(override) {
 // ---------------------------------------------------------------------------
 // launch: what the first window opens when no file was passed on the command line
 // ---------------------------------------------------------------------------
-const launchArgs = (argv) => parseLaunchArgs(argv, { defaultApp: !!process.defaultApp });
+// `posemark --wait file`: the invoking shell blocks until the window closes. The waiting process
+// owns a token file; whoever ends up showing the window deletes it when the window goes away.
+const waitTokenDir = () => path.join(os.tmpdir(), 'posemark-wait');
+let ownWaitToken = null;
+function newWaitToken() {
+  fs.mkdirSync(waitTokenDir(), { recursive: true });
+  ownWaitToken = path.join(waitTokenDir(), `${process.pid}-${crypto.randomBytes(6).toString('hex')}`);
+  fs.writeFileSync(ownWaitToken, '');
+  return ownWaitToken;
+}
+function releaseWaitToken(token) {
+  try {
+    fs.unlinkSync(token);
+  } catch { /* already gone */ }
+}
+function whenWaitTokenReleased(token, done) {
+  const tick = () => (fs.existsSync(token) ? setTimeout(tick, 250) : done());
+  tick();
+}
+
+// What a launch asks for, as windows to open: one per path, else the usual launch payload.
+function windowsFor(cli, waitToken) {
+  if (!cli.paths.length) return cli.newWindow ? [launchPayload()] : [];
+  return cli.paths.map((p, i) => ({ ...p, waitToken: i === 0 ? waitToken : undefined }));
+}
+
+// `posemark export`: a hidden window renders each file; nothing is shown.
+async function runCliExport(cli) {
+  const win = createWindow({ hidden: true });
+  const wc = win.webContents;
+  const js = (code) => wc.executeJavaScript(code, true);
+  const deadline = Date.now() + 30000;
+  while (!(await js('!!(window.__ink && window.__ink.view())').catch(() => false))) {
+    if (Date.now() > deadline) throw new Error('the editor did not start');
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  const ext = { html: 'html', 'html-plain': 'html', pdf: 'pdf', png: 'png', wechat: 'html' }[cli.format];
+  const many = cli.inputs.length > 1;
+  const outIsDir = !!cli.out && (many || /[\\/]$/.test(cli.out) || (fs.existsSync(cli.out) && fs.statSync(cli.out).isDirectory()));
+  if (outIsDir) fs.mkdirSync(cli.out, { recursive: true });
+  const rel = (p) => path.relative(process.cwd(), p) || p;
+  let failed = 0;
+  for (const file of cli.inputs) {
+    const base = path.basename(file).replace(/\.[^.]+$/, '');
+    const target = outIsDir ? path.join(cli.out, `${base}.${ext}`) : cli.out || path.join(path.dirname(file), `${base}.${ext}`);
+    try {
+      await js(`window.__ink.openPath(${JSON.stringify(file)})`);
+      await new Promise((r) => setTimeout(r, 300));
+      if (cli.format === 'wechat') {
+        const { html } = await js('window.__ink.copyWeChat(true)');
+        await fsp.writeFile(target, html, 'utf8');
+      } else {
+        const payload = await js(`window.__ink.exportPayload(${JSON.stringify(cli.format)}, ${JSON.stringify(cli.overrides)})`);
+        if (cli.format === 'pdf') await htmlToPdf(payload.html, target, payload.pdf, payload.info);
+        else if (cli.format === 'png') await htmlToPng(payload.html, target, payload.width);
+        else await fsp.writeFile(target, payload.html, 'utf8');
+      }
+      console.log(`${rel(file)} -> ${rel(target)}`);
+    } catch (err) {
+      failed += 1;
+      console.error(`${rel(file)}: ${err.message || err}`);
+    }
+  }
+  return failed ? 1 : 0;
+}
+
+// macOS: File › Install "posemark" Shell Command links the bundled script into /usr/local/bin.
+async function installShellCommand() {
+  const script = path.join(process.resourcesPath, 'bin', 'posemark');
+  const link = '/usr/local/bin/posemark';
+  if (!fs.existsSync(script)) throw new Error('the command line script is not part of this build');
+  try {
+    fs.mkdirSync('/usr/local/bin', { recursive: true });
+    try { fs.unlinkSync(link); } catch { /* none yet */ }
+    fs.symlinkSync(script, link);
+  } catch {
+    // /usr/local/bin is usually root-owned: ask once, through the system prompt
+    const { execFileSync } = require('child_process');
+    const shellCmd = `mkdir -p /usr/local/bin && ln -sf ${JSON.stringify(script)} ${JSON.stringify(link)}`;
+    execFileSync('osascript', ['-e', `do shell script ${JSON.stringify(shellCmd)} with administrator privileges`], { stdio: 'ignore' });
+  }
+  return link;
+}
 
 function launchPayload() {
   const action = cfg('launchAction') || 'folder';
@@ -1375,6 +1459,7 @@ function registerIpc() {
     entry.allowClose = true;
     entry.win.close();
   });
+  ipcMain.handle('app:installShellCommand', () => installShellCommand());
   ipcMain.handle('window:new', (_e, payload) => {
     const win = createWindow(payload || {});
     return win.id;
@@ -1465,16 +1550,53 @@ async function listRecoverableDrafts() {
 // ---------------------------------------------------------------------------
 // lifecycle
 // ---------------------------------------------------------------------------
-if (!app.requestSingleInstanceLock()) {
-  app.quit();
+function bootServices() {
+  store = new Store(path.join(app.getPath('userData'), 'config.json'));
+  refreshLanguage();
+  drafts = new Drafts(path.join(app.getPath('userData'), 'drafts'));
+  userThemes = new UserThemes(path.join(app.getPath('userData'), 'themes'));
+  registerIpc();
+}
+
+const cli = parseCli(process.argv, { defaultApp: !!process.defaultApp });
+const say = (text, code) => process.stdout.write(text, () => app.exit(code));
+
+if (cli.command === 'help') {
+  say(helpText(), 0);
+} else if (cli.command === 'version') {
+  say(`${app.getName()} ${app.getVersion()} (Electron ${process.versions.electron})\n`, 0);
+} else if (cli.error) {
+  process.stderr.write(`posemark: ${cli.error}\n${helpText()}`, () => app.exit(2));
+} else if (cli.command === 'export') {
+  // no single-instance lock: exporting must not be forwarded to an open editor
+  app.whenReady().then(async () => {
+    bootServices();
+    let code = 1;
+    try {
+      code = await runCliExport(cli);
+    } catch (err) {
+      console.error(`posemark: ${err.message || err}`);
+    }
+    store?.save();
+    app.exit(code);
+  });
+} else if (!app.requestSingleInstanceLock({ waitToken: cli.wait && cli.paths.length ? newWaitToken() : null })) {
+  // the running instance got our arguments; with --wait stay around until it is done with them
+  if (ownWaitToken) {
+    if (app.dock) app.dock.hide();
+    whenWaitTokenReleased(ownWaitToken, () => app.exit(0));
+  } else app.quit();
 } else {
-  // a second launch with a file opens it in a new window; without one it just raises us
-  app.on('second-instance', (_e, argv) => {
-    const asked = launchArgs(argv);
-    if (asked) {
-      createWindow(asked);
+  // a second launch with paths opens them in new windows; without any it just raises us
+  app.on('second-instance', (_e, argv, workingDirectory, data) => {
+    if (process.env.POSEMARK_DEBUG) console.log('second-instance', JSON.stringify({ argv, workingDirectory, data }));
+    const asked = parseCli(argv, { defaultApp: !!process.defaultApp, cwd: workingDirectory || process.cwd() });
+    const wins = asked.command === 'open' && !asked.error ? windowsFor(asked, data && data.waitToken) : [];
+    if (wins.length) {
+      wins.forEach((w) => createWindow(w));
       return;
     }
+    if (data && data.waitToken) releaseWaitToken(data.waitToken); // nothing to wait for
     const win = focusedWindow();
     if (win) {
       if (win.isMinimized()) win.restore();
@@ -1489,12 +1611,9 @@ if (!app.requestSingleInstanceLock()) {
   });
 
   app.whenReady().then(() => {
-    store = new Store(path.join(app.getPath('userData'), 'config.json'));
-    refreshLanguage();
-    drafts = new Drafts(path.join(app.getPath('userData'), 'drafts'));
-    userThemes = new UserThemes(path.join(app.getPath('userData'), 'themes'));
-    registerIpc();
-    createWindow(launchArgs(process.argv) || launchPayload());
+    bootServices();
+    const wins = windowsFor(cli, ownWaitToken);
+    (wins.length ? wins : [launchPayload()]).forEach((w) => createWindow(w));
     nativeTheme.on('updated', () => {
       for (const w of orderedWindows()) w.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff');
       updateMenu();

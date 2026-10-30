@@ -1,0 +1,8 @@
+#!/bin/sh
+# Posemark command line for macOS. File › Install "posemark" Shell Command links this file into
+# /usr/local/bin; it lives in Posemark.app/Contents/Resources/bin.
+self="$0"
+target="$(readlink "$self" 2>/dev/null)"
+[ -n "$target" ] && self="$target"
+here="$(cd "$(dirname "$self")" && pwd)"
+exec "$here/../../MacOS/Posemark" "$@"

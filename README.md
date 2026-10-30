@@ -329,6 +329,30 @@ messages that carry a value.
   a theme of its own (start it with `/* dark */` to mark it dark). Exports pick the overrides up
   too. Edits apply when the theme is re-selected or the window is reloaded.
 
+## Command line
+
+The installed app doubles as a command line tool (`src/main/cli-args.js` parses it; in development
+`pnpm exec electron . …` takes the same arguments):
+
+```bash
+posemark notes/                 # a folder opens in the sidebar, files in the editor
+posemark -n todo.md             # always a new window
+posemark --wait draft.md        # return when that window closes (git: core.editor="posemark --wait")
+posemark export a.md b.md -f pdf -o out/      # html | html-plain | pdf | png | wechat
+posemark export a.md --theme night --paper Letter --landscape --margin "18 14" --set html-outline=true
+posemark --help
+```
+
+`export` renders in a hidden window and writes next to each file unless `-o` names a file (one
+input) or a folder; the options are the same front matter keys a document can carry, so
+`--set key=value` takes any of them. A running Posemark is reused for `open`, never for `export`.
+
+How `posemark` gets on PATH: the Windows installer has a page for it (it adds `bin\posemark.cmd`'s
+folder to the user or machine PATH and the uninstaller removes it again); on macOS use
+File › Install "posemark" Shell Command, which links `Contents/Resources/bin/posemark` into
+`/usr/local/bin`; the deb package installs `/usr/bin/posemark`; for the AppImage or the portable zip,
+alias the executable yourself. The Store (MSIX) build has no alias yet.
+
 ## Verifying without clicking
 
 The main process has three verification modes (they are dev-only flags, not user features):
