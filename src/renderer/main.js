@@ -2324,9 +2324,11 @@ function applyRuntimeConfig() {
 // ---------------------------------------------------------------------------
 // One export page for every format. `format`: 'html' | 'html-plain' | 'pdf' | 'png' (or 'copy').
 // Settings come from the config with the document's front matter overrides applied.
-async function buildExport(format = 'html') {
+// `overrides` are front matter keys (export-theme, pdf-paper, …) that win over the document's own,
+// which is how `posemark export --theme night` reaches the settings.
+async function buildExport(format = 'html', overrides = null) {
   const src = S.view.state.doc.toString();
-  const { meta } = splitFrontMatter(src);
+  const meta = { ...splitFrontMatter(src).meta, ...(overrides || {}) };
   const settings = resolveExportSettings(S.config, meta);
   const host = document.createElement('div');
   host.innerHTML = renderFragment(src, { docPath: S.path });
@@ -2636,6 +2638,14 @@ const commands = {
   'app:preferences': (section) => openPrefs(typeof section === 'string' ? section : undefined),
   'app:closeWindow': () => attemptClose(),
   'app:quit': () => attemptClose(),
+  'app:installShellCommand': async () => {
+    try {
+      const link = await window.ink.installShellCommand();
+      flashMessage(`Installed ${link} — run “posemark --help” in a new Terminal window`);
+    } catch (err) {
+      flashMessage(`Could not install the shell command: ${err.message || err}`);
+    }
+  },
   'app:requestClose': () => attemptClose(),
   'export:html': () => exportAs('html'),
   'export:htmlPlain': () => exportAs('html-plain'),
@@ -3487,8 +3497,8 @@ async function boot() {
       return buildExportHtml();
     },
     // what exportAs() would hand the main process, without the dialog
-    async exportPayload(format) {
-      const { html, settings, meta, vars } = await buildExport(format);
+    async exportPayload(format, overrides = null) {
+      const { html, settings, meta, vars } = await buildExport(format, overrides);
       return { html, pdf: pdfOptions(settings, vars), info: pdfInfo(meta, vars.title), width: Number(settings.exportImageWidth) || 860 };
     },
     copyWeChat: (dry = true) => copyForWeChat(dry),
