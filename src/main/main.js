@@ -6,6 +6,7 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { Store } = require('./store');
+const { parseLaunchArgs } = require('./launch-args');
 const BUILTIN_THEMES = require('./themes');
 const { buildMenu } = require('./menu');
 const { Drafts, draftId } = require('./drafts');
@@ -1003,10 +1004,7 @@ function uploaderOptions(override) {
 // ---------------------------------------------------------------------------
 // launch: what the first window opens when no file was passed on the command line
 // ---------------------------------------------------------------------------
-const fileArg = (argv) =>
-  argv
-    .slice(1)
-    .find((a) => !a.startsWith('-') && /\.(md|markdown|mmd|mdown|mkd|mdwn|mdtxt|mdtext|txt|text|rmd)$/i.test(a) && fs.existsSync(a));
+const launchArgs = (argv) => parseLaunchArgs(argv, { defaultApp: !!process.defaultApp });
 
 function launchPayload() {
   const action = cfg('launchAction') || 'folder';
@@ -1472,9 +1470,9 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   // a second launch with a file opens it in a new window; without one it just raises us
   app.on('second-instance', (_e, argv) => {
-    const file = fileArg(argv);
-    if (file) {
-      createWindow({ file: path.resolve(file) });
+    const asked = launchArgs(argv);
+    if (asked) {
+      createWindow(asked);
       return;
     }
     const win = focusedWindow();
@@ -1496,8 +1494,7 @@ if (!app.requestSingleInstanceLock()) {
     drafts = new Drafts(path.join(app.getPath('userData'), 'drafts'));
     userThemes = new UserThemes(path.join(app.getPath('userData'), 'themes'));
     registerIpc();
-    const file = fileArg(process.argv);
-    createWindow(file ? { file: path.resolve(file) } : launchPayload());
+    createWindow(launchArgs(process.argv) || launchPayload());
     nativeTheme.on('updated', () => {
       for (const w of orderedWindows()) w.setBackgroundColor(nativeTheme.shouldUseDarkColors ? '#1e1e1e' : '#ffffff');
       updateMenu();

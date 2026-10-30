@@ -51,6 +51,12 @@ builds the Microsoft Store package (`.appx`) and keeps it as a workflow artifact
 Center (which signs it); its package identity comes from the repository variables
 `APPX_IDENTITY_NAME`, `APPX_PUBLISHER` and `APPX_PUBLISHER_DISPLAY_NAME`.
 
+The NSIS installer also adds two Explorer context menu entries, "Open with Posemark" on files and
+"Open Folder with Posemark" on folders and folder backgrounds (labels in Chinese when the installer
+runs in Chinese). They are registry keys under `Software\Classes` in the hive the install went to
+(`build/installer.nsh`) and are removed by the uninstaller. A folder passed on the command line opens
+in the sidebar, a file opens in the editor; the portable zip and the Store package get no menu entries.
+
 Running Electron **45.0.0** (Chromium 156, Node 22).
 
 ![editor](docs/screenshots/light.png)
