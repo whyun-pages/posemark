@@ -127,6 +127,12 @@ section.soft { background: var(--bg-soft); }
 .showcase li { padding-left: 26px; position: relative; margin: 8px 0; }
 .showcase li::before { content: ""; position: absolute; left: 4px; top: .7em; width: 10px; height: 10px; border-radius: 3px; background: var(--accent); }
 .shot { border-radius: 12px; overflow: hidden; box-shadow: var(--shadow), 0 0 0 1px var(--border); background: var(--bg-card); }
+/* feature shots are cropped to the part that matters, so they sit on a tinted mat instead of a window frame */
+.showcase .shot {
+  padding: 22px; border-radius: 18px; box-shadow: none;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--brand) 16%, var(--bg-soft)), color-mix(in srgb, #7a5cff 14%, var(--bg-soft)));
+}
+.showcase .shot img { border-radius: 10px; box-shadow: var(--shadow), 0 0 0 1px var(--border); }
 
 .downloads { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
 .dl { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px; display: flex; flex-direction: column; }

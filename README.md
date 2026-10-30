@@ -344,8 +344,9 @@ pnpm exec electron . samples/demo.md --wx-test=tmp/wx
 
 `POSEMARK_DEBUG=1` forwards renderer console output to the terminal, `POSEMARK_DUMP=1|2|3` dumps the
 syntax tree / visible line texts / block widgets, and `POSEMARK_SCROLL=<px>` scrolls before the capture.
-`POSEMARK_JS=<script>` runs renderer code before the capture and `POSEMARK_TYPE=<text>` types real
-keystrokes into the editor (that is how the smart-typography input handler is verified).
+`POSEMARK_JS=<script>` runs renderer code before the capture, `POSEMARK_CLIP=<script>` runs code that
+returns `{ x, y, width, height }` (CSS px) so only that region is captured, and `POSEMARK_TYPE=<text>`
+types real keystrokes into the editor (that is how the smart-typography input handler is verified).
 
 ## Layout
 

@@ -415,7 +415,14 @@ function installVerificationModes(win, entry) {
           const typed = await win.webContents.executeJavaScript('window.__ink.view().state.doc.toString()');
           console.log('TYPED DOC:', JSON.stringify(typed));
         }
-        const img = await win.webContents.capturePage();
+        // POSEMARK_CLIP: renderer code returning { x, y, width, height } in CSS px; only that
+        // region is captured (the website's feature screenshots crop to the part that matters)
+        let clip;
+        if (process.env.POSEMARK_CLIP) {
+          clip = await win.webContents.executeJavaScript(process.env.POSEMARK_CLIP);
+          console.log('CLIP:', JSON.stringify(clip));
+        }
+        const img = await win.webContents.capturePage(clip);
         fs.writeFileSync(out, img.toPNG());
         console.log('screenshot written', out);
       } catch (err) {

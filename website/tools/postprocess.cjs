@@ -22,6 +22,8 @@ app.whenReady().then(async () => {
       const { width } = img.getSize();
       const web = width > 1600 ? img.resize({ width: 1600, quality: 'best' }) : img;
       fs.writeFileSync(path.join(shotsDir, f.replace(/\.png$/, '.jpg')), web.toJPEG(86));
+      const size = web.getSize();
+      console.log(`${f.replace(/\.png$/, '.jpg')} ${size.width}x${size.height}`);
     }
 
     fs.copyFileSync(path.join(root, 'build/icon.svg'), path.join(assets, 'logo.svg'));

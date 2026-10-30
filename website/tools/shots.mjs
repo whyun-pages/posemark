@@ -37,13 +37,46 @@ const scrollTo = (text) => `(() => {
   if (line) document.querySelector('.cm-scroller').scrollTop = line.offsetTop - 24;
 })();`;
 
+// Crop regions, in CSS px of the app window. The editor column is the document's content box plus
+// a little margin, cut to a fixed aspect so both languages produce the same picture size; dialogs
+// are captured as they are. Without a clip the whole window is captured.
+const column = (aspect) => `(() => {
+  const c = document.querySelector('.cm-content').getBoundingClientRect();
+  const s = document.querySelector('.cm-scroller').getBoundingClientRect();
+  const x = Math.round(Math.max(s.left, c.left - 32));
+  const width = Math.round(Math.min(s.right, c.right + 32)) - x;
+  return { x, y: Math.round(s.top), width, height: Math.min(Math.round(s.height), Math.round(width / ${aspect})) };
+})()`;
+const sidebarAndColumn = (aspect) => `(() => {
+  const side = document.querySelector('#sidebar').getBoundingClientRect();
+  const c = document.querySelector('.cm-content').getBoundingClientRect();
+  const x = Math.round(side.left);
+  const width = Math.round(c.right + 24) - x;
+  return { x, y: Math.round(side.top), width, height: Math.min(Math.round(side.height), Math.round(width / ${aspect})) };
+})()`;
+const dialog = `(() => {
+  const r = document.querySelector('#prefs .modal-box').getBoundingClientRect();
+  return { x: Math.round(r.left), y: Math.round(r.top), width: Math.round(r.width), height: Math.round(r.height) };
+})()`;
+
+const previewReady = `new Promise((done) => {
+  const t0 = Date.now();
+  const tick = () => {
+    const text = document.querySelector('.wx-preview')?.textContent || '';
+    if ((text && !/updating|更新中/.test(text)) || Date.now() - t0 > 15000) setTimeout(done, 400);
+    else setTimeout(tick, 150);
+  };
+  tick();
+})`;
+
 const SHOTS = [
   { name: 'editor', js: () => settle },
-  { name: 'dark', config: { theme: 'night' }, js: () => `${settle} window.__ink.run('view:outline');` },
-  { name: 'source', js: () => `window.__ink.run('view:sourceMode'); ${settle}` },
-  { name: 'math', js: (l) => `${settle} ${scrollTo(l.math)}`, wait: 3600 },
-  { name: 'export', js: () => `${settle} window.__ink.run('export:settings');` },
-  { name: 'wechat', js: () => `${settle} window.__ink.run('app:preferences', 'wechat');`, wait: 4500 },
+  { name: 'dark', config: { theme: 'night' }, js: () => `${settle} window.__ink.run('view:outline');`, clip: sidebarAndColumn(1.6) },
+  { name: 'source', js: () => `window.__ink.run('view:sourceMode'); ${settle}`, clip: column(1.6) },
+  { name: 'math', js: (l) => `${settle} ${scrollTo(l.math)}`, wait: 3600, clip: column(1.6) },
+  { name: 'export', js: () => `${settle} window.__ink.run('export:settings');`, clip: dialog },
+  // the 公众号 preview rasterises the formula and the diagram first: wait until it reports done
+  { name: 'wechat', js: () => `${settle} window.__ink.run('app:preferences', 'wechat'); ${previewReady}`, clip: dialog },
 ];
 
 for (const [lang, l] of Object.entries(LANGS)) {
@@ -66,7 +99,7 @@ for (const [lang, l] of Object.entries(LANGS)) {
     const res = spawnSync(
       electron,
       [root, path.join(here, l.doc), `--user-data-dir=${userData}`, `--screenshot=${file}`, `--wait=${shot.wait || 3000}`],
-      { env: { ...process.env, POSEMARK_JS: shot.js(l) }, encoding: 'utf8', timeout: 90_000 },
+      { env: { ...process.env, POSEMARK_JS: shot.js(l), ...(shot.clip ? { POSEMARK_CLIP: shot.clip } : {}) }, encoding: 'utf8', timeout: 90_000 },
     );
     fs.rmSync(userData, { recursive: true, force: true });
     console.log(fs.existsSync(file) ? `ok   ${shot.name}-${lang}` : `FAIL ${shot.name}-${lang}\n${res.stdout}\n${res.stderr}`);
