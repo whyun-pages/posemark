@@ -7,11 +7,13 @@ const require = createRequire(import.meta.url);
 const { parseCli, helpText } = require('../src/main/cli-args.js');
 
 const cwd = path.resolve('C:\\work');
+// an absolute path outside cwd, spelled so it is absolute on every platform
+const elsewhere = path.resolve(cwd, '..', 'elsewhere', 'c.md');
 const disk = {
   [path.resolve(cwd, 'a.md')]: 'file',
   [path.resolve(cwd, 'b.md')]: 'file',
   [path.resolve(cwd, 'notes')]: 'folder',
-  [path.resolve('C:\\elsewhere\\c.md')]: 'file',
+  [elsewhere]: 'file',
 };
 const kind = (p) => disk[p] || null;
 const parse = (args, extra = {}) => parseCli(['Posemark.exe', ...args], { cwd, kind, ...extra });
@@ -24,8 +26,8 @@ test('no arguments: plain launch', () => {
 });
 
 test('files and folders, relative to the caller folder', () => {
-  const r = parse(['a.md', 'notes', 'C:\\elsewhere\\c.md']);
-  assert.deepEqual(r.paths, [{ file: path.resolve(cwd, 'a.md') }, { folder: path.resolve(cwd, 'notes') }, { file: path.resolve('C:\\elsewhere\\c.md') }]);
+  const r = parse(['a.md', 'notes', elsewhere]);
+  assert.deepEqual(r.paths, [{ file: path.resolve(cwd, 'a.md') }, { folder: path.resolve(cwd, 'notes') }, { file: elsewhere }]);
 });
 
 test('missing paths are an error, Chromium flags are ignored', () => {
