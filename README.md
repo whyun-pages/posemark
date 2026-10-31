@@ -42,7 +42,7 @@ CI runs the tests and the renderer build on Linux, Windows and macOS for every p
 request. To publish a release, bump `version` in `package.json`, commit, then push a matching tag:
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.2.0 && git push origin v0.2.0
 ```
 
 The release workflow builds the Windows (NSIS installer + portable zip), macOS (dmg, x64 + arm64) and Linux (AppImage, deb)
