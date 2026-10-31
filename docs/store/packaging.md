@@ -133,10 +133,28 @@ pnpm exec electron-builder --win appx --x64 --publish never   # 产物：release
 ```
 
 - 构建在 Windows 上进行；electron-builder 会使用其 `winCodeSign` 缓存中的 `makeappx.exe`，若失败请安装 Windows 10/11 SDK。
-- **本地侧载测试**需要签名：生成自签名证书，Subject 必须与 `publisher` 完全相同（`CN=<PUBLISHER_GUID>`），
-  配置 `win.certificateFile` / `certificatePassword`（或 `CSC_LINK`），把证书导入“受信任的人”后双击安装；
-  或在“设置 › 系统 › 开发者选项”打开开发人员模式后用 `Add-AppxPackage -Register <解包目录>\AppxManifest.xml`。
-  **提交商店的那个包不需要签名**（签了也会被替换）。
+- **本地侧载测试**需要签名，Subject 必须与 `publisher` 完全相同（`CN=<PUBLISHER_GUID>`）。
+  一次性生成开发证书（放在被 gitignore 的 `_cache/certs/`，私钥不要提交）：
+
+  ```powershell
+  $pub = 'CN=48325D51-0D86-4D4C-811F-9CFEA8D3F947'
+  $cert = New-SelfSignedCertificate -Type Custom -Subject $pub -KeyUsage DigitalSignature `
+    -FriendlyName 'Posemark dev signing' -CertStoreLocation Cert:\CurrentUser\My `
+    -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3', '2.5.29.19={text}')
+  Export-PfxCertificate -Cert $cert -FilePath _cache\certs\posemark-dev.pfx -Password (Read-Host -AsSecureString)
+  Export-Certificate   -Cert $cert -FilePath _cache\certs\posemark-dev.cer
+  ```
+
+  然后签名、信任、安装（后两步需要管理员 PowerShell）：
+
+  ```powershell
+  & "${env:ProgramFiles(x86)}\Windows Kitsin.0.26100.0d\signtool.exe" sign /fd SHA256 /a /f _cache\certs\posemark-dev.pfx /p <密码> release\Posemark-0.1.0-x64.appx
+  Import-Certificate -FilePath _cache\certs\posemark-dev.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople
+  Add-AppxPackage release\Posemark-0.1.0-x64.appx
+  ```
+
+  不想安装证书的话，可在“设置 › 系统 › 开发者选项”打开开发人员模式后
+  `Add-AppxPackage -Register <解包目录>\AppxManifest.xml`。**提交商店的那个包不需要签名**（签了也会被替换）。
 - 测试清单：首次启动、打开/保存文件、双击 `.md` 打开、第二次启动带文件参数（新窗口）、拖入图片、
   导出 HTML/PDF、**复制到微信公众号（含公式与 mermaid）**、草稿恢复、“打开主题文件夹”、卸载后数据被清除。
 
