@@ -47,7 +47,7 @@ Electron 应用通过 MSIX 打包后属于“桌面桥 / 完全信任桌面应�
 
 | Capability | 是否需要 | 说明 |
 | --- | --- | --- |
-| `runFullTrust`（受限能力） | **需要** | 所有 Win32/Electron 桌面应用打包为 MSIX 都必须声明；electron-builder 的 appx 目标会自动写入清单。提交时 Partner Center 会要求在“提交选项 › 受限能力说明”里填写理由，可写：*Posemark is a Win32 desktop (Electron) application packaged with the Desktop Bridge; runFullTrust is required for the app to run as a full-trust desktop process.* |
+| `runFullTrust`（受限能力） | **需要** | 所有 Win32/Electron 桌面应用打包为 MSIX 都必须声明；electron-builder 的 appx 目标会自动写入清单。提交时 Partner Center 会要求在“提交选项 › 受限能力说明”里填写理由，见下方 §3.1 可直接粘贴的文本。 |
 | `internetClient` | 不需要单独声明 | full trust 进程本身即可联网；electron-builder 默认不额外添加 |
 | `broadFileSystemAccess` | **不使用** | 这是 UWP 应用的能力；full-trust 桌面进程本来就可以通过普通 Win32 文件 API 和“打开/保存”对话框访问用户文件，不要申请（申请会触发额外审核） |
 | `picturesLibrary` / `documentsLibrary` | 不需要 | 同上，full trust 下不需要 |
@@ -55,6 +55,44 @@ Electron 应用通过 MSIX 打包后属于“桌面桥 / 完全信任桌面应�
 | `unvirtualizedResources` | 暂不需要 | 见 `packaging.md` 第 5 节关于 userData 虚拟化的说明；只有在需要让外部程序（资源管理器）看到真实 AppData 路径时才考虑 |
 
 文件关联（`.md` / `.markdown`）是清单 `Extensions` 中的 `uap:FileTypeAssociation`，不是 capability，不需要额外声明。
+
+### 3.1 受限能力说明（`runFullTrust`）可直接粘贴的文本
+
+Partner Center 提问：“为何需要使用 runFullTrust 功能，如何在产品中使用？”
+
+**500 字以内版（表单有长度限制时用这两个）**
+
+英文 496 字符：
+
+> Posemark is an Electron-based Windows Markdown editor packaged with MSIX and running as a full-trust Win32 process. runFullTrust is required to open, edit and save Markdown/HTML files anywhere on disk via the standard dialogs, to write HTML/PDF exports the user chooses, to run the user's own uploader CLI as a child process, and to work with the shell: open .md files from Explorer, take the path passed at launch, use the Recycle Bin. No admin rights or registry writes, no drivers or services.
+
+中文 373 字：
+
+> Posemark 是基于 Electron 构建、经 Desktop Bridge（MSIX）打包上架的 Windows 桌面 Markdown 编辑器，以完全信任的 Win32 进程运行，无法在 AppContainer 中运行。runFullTrust 用于以下核心功能：①通过标准打开/保存对话框读取、编辑、监听并保存磁盘任意位置（含可移动磁盘与网络驱动器）的 Markdown/HTML 文档，使用普通 Win32 文件 API；②导出 HTML/PDF 时写入用户指定的输出文件，图片上传时把用户自行配置的命令行工具（如 PicGo）作为子进程执行；③系统集成：双击或从资源管理器打开 .md 文件、启动时接收外壳传入的文件或文件夹路径、在资源管理器中定位文件、移入回收站。应用不请求管理员权限，不写注册表，不安装驱动、服务或后台任务。
+
+**详细版（字数不受限时用）**
+
+**英文**
+
+> Posemark is a desktop Markdown editor for Windows built on the Electron framework and packaged for the Store with the Desktop Bridge (MSIX). It runs as a full-trust Win32 desktop process, so `runFullTrust` is required for the following, all of which are core functionality:
+>
+> 1. **Process model.** The app ships the Chromium/Node.js runtime and is launched from a native .exe; it cannot run inside an AppContainer.
+> 2. **Editing the user's own files.** Users open, edit, watch and save Markdown/HTML documents anywhere on disk, including removable and network drives, through the standard Windows open/save dialogs. Reading and writing those files needs the normal Win32 file APIs (broadFileSystemAccess is not requested).
+> 3. **Export and image upload.** Exporting to HTML/PDF writes the output file the user picks, and the image-upload feature executes the command-line uploader the user configured (e.g. PicGo) as a child process.
+> 4. **Shell integration.** Opening `.md`/`.markdown` files from Explorer or by double-click (the package declares the file type association), receiving the selected file or folder path from the shell when the app is launched, revealing a file in Explorer, moving files to the Recycle Bin, and opening links found in a document in the user's default browser.
+>
+> The app never requests administrator rights, does not write to the registry, and installs no drivers, services or background tasks. `runFullTrust` is used only so this editor can work with the user's local documents and the Windows shell like any other desktop text editor.
+
+**中文**
+
+> Posemark 是基于 Electron 构建、通过 Desktop Bridge（MSIX）打包上架的 Windows 桌面 Markdown 编辑器，以完全信任的 Win32 桌面进程运行。需要 runFullTrust 的原因（均为核心功能）：
+>
+> 1. **进程模型**：应用自带 Chromium/Node.js 运行时，由原生 .exe 启动，无法在 AppContainer 中运行。
+> 2. **编辑用户本地文件**：用户通过标准打开/保存对话框打开、编辑、监听并保存磁盘任意位置（含可移动磁盘与网络驱动器）的 Markdown/HTML 文档，需使用普通 Win32 文件 API（未申请 broadFileSystemAccess）。
+> 3. **导出与图片上传**：导出 HTML/PDF 需写入用户指定的输出文件；图片上传功能会把用户自行配置的命令行上传工具（如 PicGo）作为子进程执行。
+> 4. **系统集成**：从资源管理器或双击打开 `.md`/`.markdown`（包内声明了文件类型关联）、启动时接收外壳传入的文件或文件夹路径、在资源管理器中定位文件、将文件移入回收站、用系统默认浏览器打开文档中的链接。
+>
+> 应用从不请求管理员权限，不写注册表，不安装驱动、服务或后台任务。runFullTrust 仅用于让该编辑器像其他桌面文本编辑器一样操作用户自己的本地文档与 Windows 外壳。
 
 ## 4. 定价与可用性
 

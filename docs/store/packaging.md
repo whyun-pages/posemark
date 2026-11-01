@@ -170,6 +170,7 @@ pnpm exec electron-builder --win appx --x64 --publish never   # 产物：release
 | 渲染进程拿到的 `userData` 路径 | `:1366` 把 `app.getPath('userData')` 交给渲染进程 | 显示的路径与资源管理器中实际位置不一致 | 低风险，同上处理 |
 | 单实例 / 第二实例 | `requestSingleInstanceLock` + `second-instance`（`:1424-1440`） | MSIX 下正常工作 | OK |
 | 文件关联 | `build.fileAssociations` md/markdown | 由清单声明，Windows 11 会在“打开方式”中列出，不能静默设为默认 | OK（用户需自行设为默认） |
+| 资源管理器右键菜单 | `build/installer.nsh` `customInstall` 写 `Software\Classes\*` / `Directory` / `Directory\Background` 下的 `shell\Posemark` | **只在 NSIS 安装版存在**：MSIX 清单里没有 `windows.fileExplorerContextMenus` 扩展，而且打包进程对 `Software\Classes` 的写入会被虚拟化，资源管理器读不到 | 商店版没有这两项（文件关联带来的“打开方式”仍在），要保留须做原生 COM，见 §5.1 |
 | 协议注册 | 未使用 `app.setAsDefaultProtocolClient` | — | OK |
 | 自动更新 | 未使用 `autoUpdater` / `electron-updater` | 由商店负责更新 | OK；注意 GitHub Release 版与商店版并存时两者 userData 不共享 |
 | 开机自启 | 未使用 `setLoginItemSettings` | — | OK，保持 `addAutoLaunchExtension: false` |
@@ -178,6 +179,19 @@ pnpm exec electron-builder --win appx --x64 --publish never   # 产物：release
 | 回收站 / 资源管理器 | `shell.trashItem`、`showItemInFolder`、`openPath` | full trust 下正常 | OK |
 | 网络 | `net.fetch` 下载图片(`:1152`)、PicList HTTP、渲染进程加载远程图片 | full trust 无需声明 `internetClient` | OK |
 | 开发用参数 | `--screenshot` / `--selftest` / `--export-test` / `--wx-test` 写入用户指定目录 | 不影响正常使用 | OK（`--wx-test` 会因 ❶ 失败） |
+
+### 5.1 Windows 11 右键菜单（`windows.fileExplorerContextMenus`）
+
+NSIS 版的两个菜单项（文件上“用 Posemark 打开”、文件夹与文件夹空白处“用 Posemark 打开文件夹”）靠注册表 verb 实现，
+MSIX **无法**用同样方式做到。若商店版要这个功能，按 Microsoft Learn《Add a File Explorer context menu command to a packaged desktop app》需要：
+
+1. 一个实现 `IExplorerCommand` 的**原生 COM DLL**（C++，Electron 本身做不了；`Invoke` 里 `ShellExecute` 启动 `Posemark.exe` 并把选中项作为参数，正好复用 `src/main/cli-args.js` 已支持的文件/文件夹参数）；
+2. 清单里 `com:Extension Category="windows.comServer"` → `com:SurrogateServer` → `com:Class Id=<CLSID> Path=<dll>`，`ThreadingModel="STA"`；
+3. `desktop4:Extension Category="windows.fileExplorerContextMenus"` → `desktop4:FileExplorerContextMenus` → `desktop5:ItemType`（`*` / `Directory` / `Directory\Background`，可多次）→ `desktop5:Verb Id Clsid=<同一 CLSID>`；
+4. `Package` 根元素补齐 `xmlns:com` / `desktop4` / `desktop5` 并加入 `IgnorableNamespaces`。
+
+代价与风险：多一个需要随包分发、按架构编译的 DLL（CI 里要有 MSVC 步骤）；electron-builder 生成的清单默认不含 com/desktop4/desktop5 命名空间，`customExtensionsPath` 只能追加 `<Extensions>` 内容，命名空间和处理可能得改生成后的清单或在构建里做后处理（未验证）。
+DLL 缺失或注册不一致时菜单不出现，且需要重启资源管理器才刷新。**结论：v1 先不带，商店版靠文件关联的“打开方式”；要加再单独立项。**
 
 ## 6. Windows 应用认证工具包（WACK）
 
