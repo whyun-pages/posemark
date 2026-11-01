@@ -18,6 +18,7 @@ import { python } from '@codemirror/lang-python';
 import { json } from '@codemirror/lang-json';
 import { syntaxHighlighting, HighlightStyle, LanguageDescription, syntaxTree } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
+import { fitDelimiters, isDelimiterMarker } from './emphasis.js';
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
 import { autocompletion } from '@codemirror/autocomplete';
 import { livePreview, focusMode, setFocusMode } from './live-preview.js';
@@ -392,6 +393,23 @@ function wrapSelection(view, before, after = before, { placeholder: ph } = {}) {
       const inner = sel.slice(before.length, sel.length - after.length);
       changes.push({ from: range.from, to: range.to, insert: inner });
       ranges.push(EditorSelection.range(range.from, range.from + inner.length));
+    } else if (sel && before === after && isDelimiterMarker(before)) {
+      // Keep the markers flanking (CJK punctuation like 「」 at the edges would break them).
+      const line = state.doc.lineAt(range.from);
+      const endLine = state.doc.lineAt(range.to);
+      const { start, end } = fitDelimiters(
+        state.sliceDoc(line.from, range.from),
+        sel,
+        state.sliceDoc(range.to, endLine.to),
+      );
+      const inner = sel.slice(start, end);
+      changes.push({
+        from: range.from,
+        to: range.to,
+        insert: sel.slice(0, start) + before + inner + after + sel.slice(end),
+      });
+      const s = range.from + start + before.length;
+      ranges.push(EditorSelection.range(s, s + inner.length));
     } else {
       const inner = sel || ph || '';
       changes.push({ from: range.from, to: range.to, insert: before + inner + after });
