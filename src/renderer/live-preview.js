@@ -172,6 +172,33 @@ class RuleWidget extends WidgetType {
   }
 }
 
+// List marker outside the caret line: a bullet (• ◦ ▪ by nesting) or the item's own number,
+// right-aligned in a box as wide as the item's hanging indent.
+const BULLETS = ['•', '◦', '▪'];
+class ListMarkerWidget extends WidgetType {
+  constructor(text, hang) {
+    super();
+    this.text = text;
+    this.hang = hang;
+  }
+
+  eq(other) {
+    return other.text === this.text && other.hang === this.hang;
+  }
+
+  toDOM() {
+    const span = document.createElement('span');
+    span.className = 'md-li-marker';
+    span.style.width = `${this.hang}em`;
+    span.textContent = this.text;
+    return span;
+  }
+
+  ignoreEvent() {
+    return false;
+  }
+}
+
 class EmojiWidget extends WidgetType {
   constructor(char, code) {
     super();
@@ -432,6 +459,69 @@ function buildInner(state) {
 
   }
 
+  // ---- list items: rendered marker + hanging indent ----------------------
+  // Every item line gets a hanging indent of LIST_INDENT per nesting level, so a wrapped
+  // line lines up under the item text. The marker sits in a box of that width: a widget
+  // off the caret line, the raw source (indent + marker) on it, so the text never jumps.
+  // Continuation lines of an item (wrapped paragraphs, `  more text`) get the same indent
+  // with an empty box in place of their leading spaces.
+  const LIST_INDENT = 1.6;
+  const listDepth = (node) => {
+    let depth = 0;
+    for (let p = node; p; p = p.parent) if (p.name === 'BulletList' || p.name === 'OrderedList') depth++;
+    return depth;
+  };
+  const markLines = new Set();
+  const contLines = new Map(); // line number -> hang (the innermost item wins)
+  const fenceRanges = [];
+  const hangLine = (line, start, end, text, hang) => {
+    decos.push(Decoration.line({ class: 'cm-md-li', attributes: { style: `--md-hang: ${hang}em` } }).range(line.from));
+    if (active.has(line.number)) {
+      if (end > start) decos.push(Decoration.mark({ class: 'md-li-src', attributes: { style: `width: ${hang}em` } }).range(start, end));
+      else decos.push(Decoration.widget({ widget: new ListMarkerWidget('', hang), side: -1 }).range(start));
+    } else if (end > start) {
+      pushReplace(start, end, Decoration.replace({ widget: new ListMarkerWidget(text, hang) }));
+    } else {
+      decos.push(Decoration.widget({ widget: new ListMarkerWidget(text, hang), side: -1 }).range(start));
+    }
+  };
+  const listMark = (mark) => {
+    if (inFrontMatter(mark.from)) return;
+    const line = doc.lineAt(mark.from);
+    const before = doc.sliceString(line.from, mark.from);
+    // inside a quote the `> ` prefix (and the spaces after it) belong to the quote marker
+    const start = /^[ \t]*$/.test(before) ? line.from : mark.from;
+    let end = mark.to;
+    while (end < line.to && /[ \t]/.test(doc.sliceString(end, end + 1))) end++;
+    const depth = listDepth(mark);
+    if (!depth) return;
+    markLines.add(line.number);
+    const raw = doc.sliceString(mark.from, mark.to);
+    const isBullet = mark.parent && mark.parent.parent && mark.parent.parent.name === 'BulletList';
+    const isTask = /^\[[ xX]\](?=\s|$)/.test(doc.sliceString(end, end + 4));
+    // like a browser's list-style: disc, then circle, then square, counting every list level
+    const text = isTask ? '' : isBullet ? BULLETS[Math.min(depth, BULLETS.length) - 1] : raw;
+    hangLine(line, start, end, text, depth * LIST_INDENT);
+  };
+  const listItem = (item) => {
+    if (inFrontMatter(item.from)) return;
+    const hang = listDepth(item) * LIST_INDENT;
+    const first = doc.lineAt(item.from).number;
+    const last = doc.lineAt(Math.max(item.from, item.to - 1)).number;
+    for (let n = first + 1; n <= last; n++) contLines.set(n, hang);
+  };
+  const continuationLines = () => {
+    for (const [n, hang] of contLines) {
+      if (markLines.has(n)) continue;
+      const line = doc.line(n);
+      if (!line.text.trim() || line.text.trimStart().startsWith('>')) continue;
+      if (replaced.some(([f, t]) => line.from >= f && line.from < t)) continue;
+      if (fenceRanges.some(([f, t]) => line.from >= f && line.from <= t)) continue;
+      const ws = /^[ \t]*/.exec(line.text)[0].length;
+      hangLine(line, line.from, line.from + ws, '', hang);
+    }
+  };
+
   let tree = syntaxTree(state);
   if (tree.length < doc.length) tree = ensureSyntaxTree(state, doc.length, 400) || tree;
 
@@ -463,7 +553,9 @@ function buildInner(state) {
         if (char) pushReplace(node.from, node.to, Decoration.replace({ widget: new EmojiWidget(char, code) }));
         return false;
       }
+      if (name === 'ListItem') listItem(node.node);
       if (name === 'FencedCode' || name === 'CodeBlock') {
+        fenceRanges.push([node.from, node.to]);
         addLineClasses(node.from, node.to, 'cm-md-fence');
         return false;
       }
@@ -558,6 +650,10 @@ function buildInner(state) {
         }
         return false;
       }
+      if (name === 'ListMark') {
+        listMark(node.node);
+        return false;
+      }
       if (name === 'HeaderMark') {
         if (!lineActive(node.from)) {
           let to = node.to;
@@ -570,6 +666,8 @@ function buildInner(state) {
       if (cls) decos.push(Decoration.mark({ class: cls }).range(node.from, node.to));
     },
   });
+
+  continuationLines();
 
   // ---- line-scanned constructs: task boxes, inline math, extra syntax -----
   const lenient = ctx.config.strictMode === false;

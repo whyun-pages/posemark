@@ -71,6 +71,22 @@ body.hide-sidebar .cm-editor .cm-content { padding: 0 72px; }
 }
 .md-math-inline { padding: 0 1px; }
 
+/* list items: hanging indent (--md-hang is set per line from the nesting depth); the marker
+   box is exactly that wide, so wrapped lines sit under the item text, not under the bullet */
+.cm-editor .cm-line.cm-md-li { padding-left: var(--md-hang) !important; text-indent: calc(-1 * var(--md-hang)); }
+.cm-editor .cm-line.cm-md-li.md-quote { padding-left: calc(14px + var(--md-hang)) !important; }
+.cm-md-li * { text-indent: 0; }
+.md-li-marker, .md-li-src {
+  display: inline-block;
+  box-sizing: border-box;
+  padding-right: .45em;
+  text-align: right;
+  white-space: pre;
+}
+.md-li-marker { color: var(--fg-muted); cursor: text; user-select: none; }
+/* the raw marker keeps its trailing space: less padding puts `-` where the bullet was */
+.md-li-src { padding-right: .2em; }
+
 /* --------------------------------------------------------------- block widgets */
 /* Block widgets sit directly in .cm-content, where CodeMirror's height map ignores
    margins (clicks land on the wrong line) — so the gap around them is padding. */
