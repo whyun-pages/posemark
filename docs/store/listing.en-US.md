@@ -10,7 +10,7 @@ confirmed in current docs and should be re-checked against the live Partner Cent
 | Product name | must match a reserved name | `Posemark` |
 | Description | required, ≤ 10,000 chars, plain text, no HTML / code / URLs | see below (3,687) |
 | Short description | optional, ≤ 1,000 chars (only the first ~270 shown in some views) | 225 |
-| What's new in this version | ≤ 1,500 chars — **leave blank on the first submission** (MS guidance) | text kept for 0.1.x updates |
+| What's new in this version | ≤ 1,500 chars — **leave blank on the first submission** (MS guidance) | 0.2.1 update text |
 | Product features | up to 20 items, ≤ 200 chars each, no own bullets | 20 items, longest 90 |
 | Search terms | up to 7 terms, ≤ 30 chars each; not shown to users; avoid competitor brand names and words like "free"/"best" | 7, longest 21 |
 | Screenshot captions | ≤ 200 chars each, up to 10 desktop screenshots | see `screenshots.md` |
@@ -120,11 +120,12 @@ markdown to pdf
 
 ## What's new in this version
 
-First submission: leave blank (Microsoft guidance). Text prepared for the first Store update, edit
-for the actual release:
+Left blank on the first submission (0.2.0). Text for the 0.2.1 update:
 
 ```
-First Microsoft Store release of Posemark 0.1.0: live-preview Markdown editing with grid tables, KaTeX math, Mermaid diagrams, image management and uploaders, file tree and folder search, unsaved-draft recovery, HTML/PDF export and Copy for WeChat.
+Posemark 0.2.1 is a bug-fix update:
+- Lists in live preview: bullets render as disc, circle and square by nesting depth, ordered lists keep their numbers, and items plus their continuation lines get a hanging indent so wrapped text lines up under the item text. The text no longer shifts when the caret line shows the raw marker.
+- Bold and italic around CJK punctuation: wrapping a selection such as 「她」 in bold, italic, strikethrough or highlight now moves the markers inside the punctuation so the formatting renders correctly.
 ```
 
 ## Copyright and trademark info
