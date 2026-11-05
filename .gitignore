@@ -6,3 +6,4 @@ tmp/
 .DS_Store
 release/
 website/tools/out/
+/apply-posemark-microstore
