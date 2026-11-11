@@ -141,6 +141,8 @@ section.soft { background: var(--bg-soft); }
 .dl p { color: var(--fg-muted); font-size: 14.5px; margin: 0 0 18px; flex: 1; }
 .dl .links { display: flex; flex-direction: column; gap: 10px; }
 .dl .links .btn { justify-content: center; height: 42px; font-size: 14.5px; }
+.dl .links ms-store-badge { display: inline-flex; justify-content: center; }
+.dl .links ms-store-badge::part(img) { height: 46px; width: auto; }
 .note { text-align: center; color: var(--fg-muted); font-size: 14px; margin-top: 26px; }
 
 /* ------------------------------------------------------------------ footer */
