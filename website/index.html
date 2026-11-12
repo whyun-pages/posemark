@@ -61,60 +61,21 @@
     </div>
   </section>
 
-  <section class="block" id="features">
+  <section class="block feature-section" id="features">
     <div class="wrap">
       <div class="section-head">
         <h2><span lang="zh-CN">专心写，排版交给它</span><span lang="en">Focus on writing, the layout takes care of itself</span></h2>
         <p><span lang="zh-CN">从笔记、技术文档到公众号文章，常用的 Markdown 写作场景都照顾到了。</span><span lang="en">From notes and technical docs to newsletter posts — the everyday Markdown jobs are covered.</span></p>
       </div>
-      <div class="features">
-        <div class="feature">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></div>
-          <h3><span lang="zh-CN">实时预览</span><span lang="en">Live preview</span></h3>
-          <p><span lang="zh-CN">边写边排版，没有左右分栏。表格、代码块、图片都能就地编辑。</span><span lang="en">Typeset as you type, no split pane. Tables, code blocks and images are edited in place.</span></p>
+      <div class="feature-stage">
+        <div class="feature-tabs" role="tablist" aria-label="Posemark features" hidden>
+          <button type="button" id="feature-tab-math" role="tab" aria-controls="feature-panel-math" aria-selected="true" tabindex="0"><span lang="zh-CN">公式与图表</span><span lang="en">Math & diagrams</span></button>
+          <button type="button" id="feature-tab-dark" role="tab" aria-controls="feature-panel-dark" aria-selected="false" tabindex="-1"><span lang="zh-CN">主题与大纲</span><span lang="en">Themes & outline</span></button>
+          <button type="button" id="feature-tab-source" role="tab" aria-controls="feature-panel-source" aria-selected="false" tabindex="-1"><span lang="zh-CN">源代码</span><span lang="en">Source mode</span></button>
+          <button type="button" id="feature-tab-export" role="tab" aria-controls="feature-panel-export" aria-selected="false" tabindex="-1"><span lang="zh-CN">导出文档</span><span lang="en">Export</span></button>
+          <button type="button" id="feature-tab-wechat" role="tab" aria-controls="feature-panel-wechat" aria-selected="false" tabindex="-1"><span lang="zh-CN">公众号排版</span><span lang="en">WeChat</span></button>
         </div>
-        <div class="feature">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 4H6l6 8-6 8h12"/></svg></div>
-          <h3><span lang="zh-CN">公式与图表</span><span lang="en">Math and diagrams</span></h3>
-          <p><span lang="zh-CN">KaTeX 公式、公式编号与引用，Mermaid 流程图、时序图随写随画。</span><span lang="en">KaTeX math with numbering and references; Mermaid flowcharts and sequence diagrams drawn as you write.</span></p>
-        </div>
-        <div class="feature">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 15l3 3 3-3M12 11v7"/></svg></div>
-          <h3><span lang="zh-CN">多种导出</span><span lang="en">Export anywhere</span></h3>
-          <p><span lang="zh-CN">HTML、PDF、长图一键导出。PDF 可设纸张、边距、页眉页脚和页码。</span><span lang="en">HTML, PDF or one long image. PDFs get paper size, margins, headers, footers and page numbers.</span></p>
-        </div>
-        <div class="feature">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1.1-4.6A8 8 0 1 1 21 12z"/></svg></div>
-          <h3><span lang="zh-CN">复制到公众号</span><span lang="en">Copy for WeChat</span></h3>
-          <p><span lang="zh-CN">一键生成公众号可用的排版，公式和图表自动转图，链接整理成参考链接。</span><span lang="en">One click gives WeChat-ready formatting; formulas and diagrams become images, links become references.</span></p>
-        </div>
-        <div class="feature">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m21 17-5-5-8 7"/></svg></div>
-          <h3><span lang="zh-CN">图片管理</span><span lang="en">Image handling</span></h3>
-          <p><span lang="zh-CN">拖入、粘贴截图自动存到 assets；拖动调整大小；支持 PicGo / PicList 上传图床。</span><span lang="en">Drop or paste and images land in assets/; drag to resize; upload through PicGo or PicList.</span></p>
-        </div>
-        <div class="feature">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/></svg></div>
-          <h3><span lang="zh-CN">主题与深色模式</span><span lang="en">Themes and dark mode</span></h3>
-          <p><span lang="zh-CN">内置 5 套主题，可跟随系统深色模式，也能用自定义 CSS 微调。</span><span lang="en">Five built-in themes that follow the system dark mode, plus your own CSS on top.</span></p>
-        </div>
-        <div class="feature">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
-          <h3><span lang="zh-CN">文件夹工作区</span><span lang="en">Folder workspace</span></h3>
-          <p><span lang="zh-CN">文件树、大纲、全文搜索、快速打开，外部改动自动同步。</span><span lang="en">File tree, outline, folder-wide search and quick open; outside changes show up on their own.</span></p>
-        </div>
-        <div class="feature">
-          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M6 6l2 2m8 8 2 2M6 18l2-2m8-8 2-2"/><circle cx="12" cy="12" r="3"/></svg></div>
-          <h3><span lang="zh-CN">不丢稿</span><span lang="en">Never lose a draft</span></h3>
-          <p><span lang="zh-CN">未保存的修改随时备份，崩溃或断电后可一键恢复；也可开启自动保存。</span><span lang="en">Unsaved edits are backed up continuously and restored after a crash; auto save is one switch away.</span></p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="block soft">
-    <div class="wrap">
-      <div class="showcase">
+        <article class="feature-panel" id="feature-panel-math" role="tabpanel" aria-labelledby="feature-tab-math" tabindex="0">
         <div class="copy">
           <h3><span lang="zh-CN">公式、图表，写完就看到</span><span lang="en">Formulas and diagrams, rendered as you finish typing</span></h3>
           <p><span lang="zh-CN">公式块打开时是一个编辑框，下方实时显示渲染结果；Mermaid 图表在你停笔的瞬间重新绘制。</span><span lang="en">A math block opens as a field with the rendered formula underneath; Mermaid diagrams redraw the moment you pause.</span></p>
@@ -125,26 +86,23 @@
             <li><span lang="zh-CN">图表可右键另存为 SVG / PNG</span><span lang="en">Right-click a diagram to save it as SVG or PNG</span></li>
           </ul>
         </div>
-        <div class="shot"><img data-shot="math" src="assets/screenshots/math-zh.jpg" width="1600" height="1000" loading="lazy" alt=""></div>
-      </div>
-
-      <div class="showcase flip">
+        <div class="shot"><img data-shot="math" src="assets/screenshots/math-zh.jpg" width="1600" height="1000" loading="lazy" alt="Posemark: Math & diagrams"></div>
+        </article>
+        <article class="feature-panel" id="feature-panel-dark" role="tabpanel" aria-labelledby="feature-tab-dark" tabindex="0">
         <div class="copy">
           <h3><span lang="zh-CN">深色模式与大纲</span><span lang="en">Dark mode and outline</span></h3>
-          <p><span lang="zh-CN">浅色、深色各选一套主题，随系统自动切换。左侧大纲面板可折叠、可筛选，当前所在章节始终高亮，点一下即可跳转。</span><span lang="en">Pick a light and a dark theme and let the system switch between them. The outline panel on the left folds, filters, keeps your current section highlighted and jumps on a click.</span></p>
+          <p><span lang="zh-CN">内置 5 套主题，浅色、深色各选一套，随系统自动切换，也能用自定义 CSS 微调。左侧大纲面板可折叠、可筛选，当前所在章节始终高亮，点一下即可跳转。</span><span lang="en">Choose from five built-in themes, pick a light and a dark theme, and let the system switch between them. Custom CSS lets you fine-tune the result. The outline panel on the left folds, filters, keeps your current section highlighted and jumps on a click.</span></p>
         </div>
-        <div class="shot"><img data-shot="dark" src="assets/screenshots/dark-zh.jpg" width="1600" height="876" loading="lazy" alt=""></div>
-      </div>
-
-      <div class="showcase">
+        <div class="shot"><img data-shot="dark" src="assets/screenshots/dark-zh.jpg" width="1600" height="876" loading="lazy" alt="Posemark: Themes & outline"></div>
+        </article>
+        <article class="feature-panel" id="feature-panel-source" role="tabpanel" aria-labelledby="feature-tab-source" tabindex="0">
         <div class="copy">
           <h3><span lang="zh-CN">随时切回源代码</span><span lang="en">Source code, one shortcut away</span></h3>
           <p><span lang="zh-CN">按 <kbd>Ctrl</kbd> + <kbd>/</kbd> 进入源代码模式：等宽字体、语法高亮，标题按级别放大，代码块和引用依然一目了然。</span><span lang="en">Press <kbd>Ctrl</kbd> + <kbd>/</kbd> for source mode: monospace, syntax-highlighted, headings sized by level, fences and quotes still easy to spot.</span></p>
         </div>
-        <div class="shot"><img data-shot="source" src="assets/screenshots/source-zh.jpg" width="1600" height="1000" loading="lazy" alt=""></div>
-      </div>
-
-      <div class="showcase flip">
+        <div class="shot"><img data-shot="source" src="assets/screenshots/source-zh.jpg" width="1600" height="1000" loading="lazy" alt="Posemark: Source mode"></div>
+        </article>
+        <article class="feature-panel" id="feature-panel-export" role="tabpanel" aria-labelledby="feature-tab-export" tabindex="0">
         <div class="copy">
           <h3><span lang="zh-CN">导出得体的 PDF 与网页</span><span lang="en">Exports that look the part</span></h3>
           <p><span lang="zh-CN">导出主题、默认文件夹、纸张、边距、页眉页脚、页码、一级标题分页，都集中在「偏好设置 › 导出」里，也能在文档的 front matter 里单独指定。</span><span lang="en">Export theme, default folder, paper, margins, headers, footers, page numbers and page breaks all live under Preferences › Export — and every document can override them in its front matter.</span></p>
@@ -154,15 +112,32 @@
             <li><span lang="zh-CN">作者、关键词写入 PDF 属性</span><span lang="en">Author and keywords in the PDF properties</span></li>
           </ul>
         </div>
-        <div class="shot"><img data-shot="export" src="assets/screenshots/export-zh.jpg" width="1600" height="1095" loading="lazy" alt=""></div>
-      </div>
-
-      <div class="showcase">
+        <div class="shot"><img data-shot="export" src="assets/screenshots/export-zh.jpg" width="1600" height="1095" loading="lazy" alt="Posemark: Export"></div>
+        </article>
+        <article class="feature-panel" id="feature-panel-wechat" role="tabpanel" aria-labelledby="feature-tab-wechat" tabindex="0">
         <div class="copy">
           <h3><span lang="zh-CN">一键复制到微信公众号</span><span lang="en">Copy straight into WeChat</span></h3>
           <p><span lang="zh-CN">公众号会丢掉所有样式表，Posemark 把排版写成行内样式再放进剪贴板。左边挑样式、强调色、字号和行距，右边的手机预览立刻显示粘贴后的效果，公式和图表自动转成图片。</span><span lang="en">WeChat's editor drops every stylesheet, so Posemark writes the formatting as inline styles. Pick a style, accent colour, font size and spacing on the left; the phone preview on the right shows the pasted result at once, with formulas and diagrams turned into images.</span></p>
         </div>
-        <div class="shot"><img data-shot="wechat" src="assets/screenshots/wechat-zh.jpg" width="1600" height="844" loading="lazy" alt=""></div>
+        <div class="shot"><img data-shot="wechat" src="assets/screenshots/wechat-zh.jpg" width="1600" height="844" loading="lazy" alt="Posemark: WeChat"></div>
+        </article>
+      </div>
+      <div class="feature-essentials">
+        <article class="feature feature-essential">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2"/><path d="m21 17-5-5-8 7"/></svg></div>
+          <h3><span lang="zh-CN">图片管理</span><span lang="en">Image handling</span></h3>
+          <p><span lang="zh-CN">拖入、粘贴截图自动存到 assets；拖动调整大小；支持 PicGo / PicList 上传图床。</span><span lang="en">Drop or paste and images land in assets/; drag to resize; upload through PicGo or PicList.</span></p>
+        </article>
+        <article class="feature feature-essential">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+          <h3><span lang="zh-CN">文件夹工作区</span><span lang="en">Folder workspace</span></h3>
+          <p><span lang="zh-CN">文件树、大纲、全文搜索、快速打开，外部改动自动同步。</span><span lang="en">File tree, outline, folder-wide search and quick open; outside changes show up on their own.</span></p>
+        </article>
+        <article class="feature feature-essential">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M6 6l2 2m8 8 2 2M6 18l2-2m8-8 2-2"/><circle cx="12" cy="12" r="3"/></svg></div>
+          <h3><span lang="zh-CN">不丢稿</span><span lang="en">Never lose a draft</span></h3>
+          <p><span lang="zh-CN">未保存的修改随时备份，崩溃或断电后可一键恢复；也可开启自动保存。</span><span lang="en">Unsaved edits are backed up continuously and restored after a crash; auto save is one switch away.</span></p>
+        </article>
       </div>
     </div>
   </section>
