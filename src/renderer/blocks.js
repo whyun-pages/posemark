@@ -9,6 +9,7 @@ import { ctx, resolveSrc, parseImageTag } from './paths.js';
 import { diagramSource } from './diagrams.js';
 import { renderTex, prepareTex } from './math.js';
 import { tr } from './i18n.js';
+import { createBlockHeader, createDiagramHeader, languageLabel } from './block-header.js';
 
 export { highlightCode, isDiagramLang };
 export { ctx };
@@ -255,13 +256,10 @@ export class CodeBlockWidget extends WidgetType {
     if (html !== null) code.innerHTML = ctx.config.lineNumbersInCode ? wrapLines(html) : html;
     else code.textContent = this.code;
     pre.appendChild(code);
-    if (this.info) {
-      const tag = document.createElement('span');
-      tag.className = 'md-code-lang';
-      tag.textContent = this.info;
-      wrap.appendChild(tag);
-    }
-    wrap.appendChild(pre);
+    const frame = document.createElement('div');
+    frame.className = 'md-code-frame';
+    frame.append(createBlockHeader(this.info, this.code).header, pre);
+    wrap.appendChild(frame);
     return wrap;
   }
 }
@@ -1126,7 +1124,7 @@ export class DiagramWidget extends WidgetType {
   }
 
   eq(other) {
-    return other.code === this.code && other.block.from === this.block.from && other.block.to === this.block.to;
+    return other.code === this.code && other.block.info === this.block.info && other.block.from === this.block.from && other.block.to === this.block.to;
   }
 
   get estimatedHeight() {
@@ -1136,15 +1134,34 @@ export class DiagramWidget extends WidgetType {
   toDOM(view) {
     const div = document.createElement('div');
     div.className = 'md-block md-diagram';
+    const frame = document.createElement('div');
+    frame.className = 'md-diagram-frame';
     const holder = document.createElement('div');
     holder.className = 'md-diagram-holder';
     holder.textContent = tr('Rendering diagram…');
-    div.appendChild(holder);
+    const source = document.createElement('pre');
+    source.className = 'md-pre md-diagram-source' + (ctx.config.codeWrap ? ' wrap' : '');
+    const code = document.createElement('code');
+    code.className = 'hljs';
+    const html = highlightCode(this.code, this.block.info);
+    if (html !== null) code.innerHTML = ctx.config.lineNumbersInCode ? wrapLines(html) : html;
+    else code.textContent = this.code;
+    source.appendChild(code);
+    const { header } = createDiagramHeader({
+      id: this.id, frame, holder, source, measure: () => view.requestMeasure(),
+      menu: (button) => button.dispatchEvent(new CustomEvent('diagram-export', { bubbles: true, detail: { source: this.code } })),
+    });
+    const footer = document.createElement('div');
+    footer.className = 'md-diagram-footer';
+    footer.appendChild(languageLabel(this.block.info || 'mermaid'));
+    frame.append(header, holder, source, footer);
+    div.appendChild(frame);
     bindClick(div, view, this.block.from + 3);
     mermaid
       .render(this.id, diagramSource(this.block.info, this.code) ?? this.code)
       .then(({ svg }) => {
         holder.innerHTML = svg;
+        view.requestMeasure();
       })
       .catch((err) => {
         holder.classList.add('error');

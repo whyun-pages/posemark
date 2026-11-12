@@ -44,7 +44,6 @@ body { background: var(--bg); }
 */
 
 /* a hairline keeps the code block from melting into the page */
-body.theme-dark .md-pre,
 body.theme-dark .markdown-body pre.code-block { border: 1px solid #33383d; }
 body.theme-dark .md-toc { border-color: #33383d; }
 body.theme-dark .md-code-lang { color: var(--fg-muted); }

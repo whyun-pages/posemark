@@ -1,6 +1,18 @@
 'use strict';
 // 简体中文。键是界面里的英文原文；`{name}` 是变量占位（见 ../i18n.js）。
 module.exports = {
+  'Plain text': '纯文本',
+  'Diagram view': '图表显示模式',
+  Preview: '预览',
+  'Restore diagram': '还原图表',
+  'More actions': '更多操作',
+  'Edit source': '编辑源码',
+  'Expand diagram': '放大图表',
+  'Exit fullscreen': '退出全屏',
+  'Export diagram': '导出图表',
+  'Copy code': '复制代码',
+  Copied: '已复制',
+  'Action failed. Try again.': '操作失败，请重试。',
   // ---------------------------------------------------------------- application menu
   '&File': '文件(&F)',
   '&Edit': '编辑(&E)',

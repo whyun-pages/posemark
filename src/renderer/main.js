@@ -3027,6 +3027,28 @@ async function relocateAllImages(mode, destOverride) {
 }
 
 function wireImageMenu() {
+  $('#editor').addEventListener('diagram-export', (e) => {
+    const diagram = e.target.closest('.md-diagram');
+    if (!diagram) return;
+    const rect = e.target.getBoundingClientRect();
+    const items = [{ label: 'Copy code', run: async () => {
+      await window.ink.clipboardWrite(e.detail.source);
+      flashMessage('Copied');
+    } }, '-', ...diagramMenuItems(diagram)];
+    const menu = openCtxMenu(rect.left, rect.bottom + 4, items);
+    menu.setAttribute('role', 'menu');
+    const buttons = [...menu.querySelectorAll('button')];
+    buttons.forEach((button) => button.setAttribute('role', 'menuitem'));
+    menu.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') { closeCtxMenu(); e.target.focus(); return; }
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const current = buttons.indexOf(document.activeElement);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next].focus();
+    });
+    buttons[0]?.focus();
+  });
   $('#editor').addEventListener(
     'contextmenu',
     (e) => {
@@ -3048,17 +3070,24 @@ function diagramSvgText(svgEl) {
   const clone = svgEl.cloneNode(true);
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   if (!clone.getAttribute('xmlns:xlink')) clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
-  const box = svgEl.getBoundingClientRect();
+  const box = diagramBounds(svgEl);
   if (!clone.getAttribute('width') || /%$/.test(clone.getAttribute('width'))) clone.setAttribute('width', String(Math.ceil(box.width)));
   if (!clone.getAttribute('height') || /%$/.test(clone.getAttribute('height'))) clone.setAttribute('height', String(Math.ceil(box.height)));
   clone.style.maxWidth = '';
   return `<?xml version="1.0" encoding="UTF-8"?>\n${new XMLSerializer().serializeToString(clone)}`;
 }
 
+// Source mode hides the rendered SVG; retain its intrinsic export dimensions.
+function diagramBounds(svgEl) {
+  const rect = svgEl.getBoundingClientRect();
+  const intrinsic = svgEl.viewBox?.baseVal;
+  return { width: rect.width || intrinsic?.width || 640, height: rect.height || intrinsic?.height || 360 };
+}
+
 // The same offscreen rasteriser the WeChat copy uses: a PNG data URL of the diagram.
 async function diagramPng(svgEl) {
   const svg = diagramSvgText(svgEl);
-  const box = svgEl.getBoundingClientRect();
+  const box = diagramBounds(svgEl);
   const bg = document.body.classList.contains('theme-dark') ? getComputedStyle(document.body).backgroundColor : '#ffffff';
   const html = `<div data-wx="0" style="display:inline-block;padding:12px;background:${bg}">${svg}</div>`;
   const shots = await window.ink.rasterize({ html, css: `body{background:${bg}}`, width: Math.ceil(box.width) + 48 });
@@ -3066,7 +3095,7 @@ async function diagramPng(svgEl) {
 }
 
 function diagramMenuItems(el) {
-  const svgEl = el.querySelector('svg');
+  const svgEl = el.querySelector('.md-diagram-holder svg, .md-live-body svg');
   const stem = (S.path ? basename(S.path).replace(/\.[^.]+$/, '') : 'diagram') + '-diagram';
   const items = [];
   if (!svgEl) return [{ label: 'Diagram is not rendered yet', run: () => {} }];
@@ -3538,11 +3567,11 @@ async function boot() {
       return els[index] ? diagramMenuItems(els[index]).map((it) => it.label) : null;
     },
     diagramPng: async (index) => {
-      const svg = [...document.querySelectorAll('.md-diagram svg')][index];
+      const svg = [...document.querySelectorAll('.md-diagram-holder svg')][index];
       return svg ? (await diagramPng(svg)).slice(0, 40) : null;
     },
     diagramSvg: (index) => {
-      const svg = [...document.querySelectorAll('.md-diagram svg')][index];
+      const svg = [...document.querySelectorAll('.md-diagram-holder svg')][index];
       return svg ? diagramSvgText(svg).length : null;
     },
     imageMenu: (index) => {
