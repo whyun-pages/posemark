@@ -2657,9 +2657,9 @@ const commands = {
   'export:copyWeChat': () => copyForWeChat(),
   'export:settings': () => openPrefs('export'),
   'export:wechatSettings': () => openPrefs('wechat'),
-  'help:about': () =>
+  'help:about': async () =>
     window.ink.info({
-      message: 'Posemark 0.1.0',
+      message: `Posemark ${await window.ink.version()}`,
       detail:
         'A Typora-style live-preview Markdown editor.\n\nBuilt with Electron, CodeMirror 6, markdown-it, KaTeX, highlight.js and Mermaid.',
     }),

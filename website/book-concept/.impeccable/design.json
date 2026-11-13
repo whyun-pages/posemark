@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-13T00:00:00+08:00",
+  "title": "Posemark 翻页概念稿",
+  "extensions": {
+    "colorMeta": {
+      "primary": {
+        "role": "primary",
+        "displayName": "布面品牌蓝",
+        "canonical": "#264a88"
+      },
+      "paper": {
+        "role": "neutral",
+        "displayName": "内页纸张",
+        "canonical": "#faf9f4"
+      },
+      "desk": {
+        "role": "neutral",
+        "displayName": "阅读桌面",
+        "canonical": "#ebe9e3"
+      }
+    },
+    "motion": [
+      {
+        "name": "page-turn",
+        "value": "850ms cubic-bezier(.42,0,.18,1)",
+        "purpose": "围绕书脊旋转双面纸页；减少动态效果时关闭。"
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "single-page",
+        "value": "720px"
+      },
+      {
+        "name": "compact-desktop",
+        "value": "1050px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "主要操作",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "书内主要操作。",
+      "html": "<button class=\"ds-primary\">打开使用文档</button>",
+      "css": ".ds-primary{background:var(--blue,#264a88);color:#fff;border:0;border-radius:3px;padding:12px 18px;cursor:pointer}.ds-primary:hover{background:#19396e}.ds-primary:focus-visible{outline:3px solid #bf7b30;outline-offset:5px}"
+    },
+    {
+      "name": "章节书签",
+      "kind": "nav",
+      "description": "书边当前章节。",
+      "html": "<button class=\"ds-tab\" aria-current=\"page\">书写</button>",
+      "css": ".ds-tab{writing-mode:vertical-rl;background:var(--blue,#264a88);color:#fff;border:0;border-radius:0 5px 5px 0;min-height:66px;padding:10px;letter-spacing:4px;cursor:pointer}.ds-tab:hover{background:#19396e}.ds-tab:focus-visible{outline:3px solid #bf7b30;outline-offset:5px}"
+    },
+    {
+      "name": "文字链接",
+      "kind": "button",
+      "description": "内页次要导航。",
+      "html": "<a class=\"ds-link\" href=\"#\">阅读完整功能文档</a>",
+      "css": ".ds-link{color:var(--blue,#264a88);font-size:12px;text-decoration:none}.ds-link:hover{text-decoration:underline;text-underline-offset:5px}.ds-link:focus-visible{outline:3px solid #bf7b30;outline-offset:5px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "把写作，翻开。",
+    "overview": "产品截图优先于书籍装饰。首页直接展示真实编辑器，功能截图贯穿整个跨页，标题与简短说明位于上方。纸色底面、轻微书脊与页叠保留翻页形式。",
+    "keyCharacteristics": [
+      "大幅产品截图",
+      "简短功能说明",
+      "章节翻页",
+      "原图放大"
+    ],
+    "rules": [],
+    "dos": [
+      "继续使用真实截图和可验证的功能文案。"
+    ],
+    "donts": [
+      "不增加第三个并列书页。"
+    ]
+  }
+}

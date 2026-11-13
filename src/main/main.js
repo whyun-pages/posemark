@@ -1488,6 +1488,7 @@ function registerIpc() {
     });
     return true;
   });
+  ipcMain.handle('app:version', () => app.getVersion());
   ipcMain.handle('app:language', () => uiLanguage());
   ipcMain.handle('app:paths', () => ({
     documents: app.getPath('documents'),

@@ -79,6 +79,7 @@ contextBridge.exposeInMainWorld('ink', {
   showAppMenu: (x, y) => ipcRenderer.invoke('app:showMenu', { x, y }),
   confirm: (payload) => ipcRenderer.invoke('app:confirm', payload),
   info: (payload) => ipcRenderer.invoke('app:info', payload),
+  version: () => ipcRenderer.invoke('app:version'),
   paths: () => ipcRenderer.invoke('app:paths'),
   language: () => ipcRenderer.invoke('app:language'),
   setZoom: (f) => ipcRenderer.invoke('app:setZoom', f),
