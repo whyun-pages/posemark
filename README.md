@@ -33,6 +33,7 @@ Then drop the official `electron-v<version>-win32-x64.zip` (from
 
 ```bash
 pnpm test            # unit tests (node:test): Markdown renderer, paths, images, math, diagrams, outline, word count, drafts, user themes
+pnpm test:website    # build and verify the website export UI and portable offline output
 pnpm dist            # package an installer for the current OS into release/
 pnpm dist:store      # Microsoft Store package (MSIX/.appx) into release/
 pnpm icons           # regenerate every icon from build/icon.svg
@@ -259,6 +260,12 @@ Right-click anything in the file tree for new file / new folder / rename / trash
 - Focus mode, typewriter mode, zoom, fullscreen, always on top
 
 **Output**
+
+`File › Export › Website…` turns a saved Markdown folder into a book-style reading website. Arrange
+chapters, edit the cover and preview the result before exporting. The output includes local images,
+attachments, rendered diagrams and formula fonts; double-click `index.html` to read offline, or upload
+the complete folder to any static host. A single searchable contents menu works for long books.
+See [website export notes](src/renderer/site-export/README.md) for scope and verification.
 
 - Export HTML (self-contained: theme CSS, highlight colours, KaTeX CSS with its fonts and rendered
   diagrams inlined), **HTML without styles** (bare markup), and **Image (PNG)** — the whole document

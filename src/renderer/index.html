@@ -39,9 +39,18 @@
       <div class="side-panel" id="panel-files">
         <div class="folder-bar">
           <span id="folder-name" title="No folder opened">No folder opened</span>
-          <button class="mini-btn" id="btn-files-view" title="Switch between tree and file list" hidden>☰</button>
-          <button class="mini-btn" id="btn-tree-menu" title="Sort and filter" hidden>⋯</button>
-          <button class="mini-btn" id="btn-open-folder" title="Open folder">+</button>
+          <button class="mini-btn" id="btn-tree-collapse" title="Collapse all folders" aria-label="Collapse all folders" hidden>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="2" width="8" height="9" rx="1"/><path d="M3 5H2v9h9v-1M7 6.5h4"/></svg>
+          </button>
+          <button class="mini-btn" id="btn-files-view" title="Switch between tree and file list" aria-label="Switch between tree and file list" hidden>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4h7M6 8h7M6 12h7M2.5 4h.5m-.5 4h.5m-.5 4h.5"/></svg>
+          </button>
+          <button class="mini-btn" id="btn-tree-menu" title="Sort and filter" aria-label="Sort and filter" hidden>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="3" cy="8" r=".65"/><circle cx="8" cy="8" r=".65"/><circle cx="13" cy="8" r=".65"/></svg>
+          </button>
+          <button class="mini-btn" id="btn-open-folder" title="Open folder" aria-label="Open folder">
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10V4.5h6l2 2h7V9"/><path d="m2.5 9 1.5 7.5h13l1-7.5Z"/></svg>
+          </button>
         </div>
         <div id="filetree" class="filetree" tabindex="0"></div>
         <div id="filelist" class="filelist" tabindex="0" hidden></div>
@@ -49,7 +58,7 @@
       <div class="side-panel" id="panel-outline" hidden>
         <div class="outline-bar">
           <input id="outline-filter" type="text" placeholder="Filter headings…" autocomplete="off" spellcheck="false" />
-          <button class="mini-btn" id="btn-outline-flat" title="Flat list / collapsible tree">☰</button>
+          <button class="mini-btn" id="btn-outline-flat" title="Flat list / collapsible tree" aria-label="Flat list / collapsible tree"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4h7M6 8h7M6 12h7M2.5 4h.5m-.5 4h.5m-.5 4h.5"/></svg></button>
         </div>
         <div id="outline" class="outline"></div>
       </div>

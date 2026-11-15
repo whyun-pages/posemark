@@ -1434,6 +1434,7 @@ function registerIpc() {
   ipcMain.handle('draft:remove', (_e, id) => drafts.remove(id));
 
   ipcMain.handle('export:document', (e, payload) => exportDocument(winFor(e), payload));
+  require('./website-window').registerWebsiteExport({cfg,patch});
 
   ipcMain.handle('shell:openExternal', (_e, url) => {
     if (/^(https?|mailto):/i.test(url)) return shell.openExternal(url);

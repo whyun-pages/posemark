@@ -6,7 +6,7 @@
 <title>使用文档 — Posemark</title>
 <meta name="title-zh" content="使用文档 — Posemark">
 <meta name="title-en" content="Documentation — Posemark">
-<meta name="description" content="Posemark 使用文档：编辑、图片、公式、图表、导出、公众号、主题与快捷键。Posemark user guide.">
+<meta name="description" content="Posemark 使用文档：文件管理、编辑、图片、公式、图表、文档与网站导出、离线阅读、公众号及快捷键。Posemark user guide.">
 <meta property="og:image" content="assets/og.png">
 <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
 <link rel="icon" href="assets/favicon-32.png" sizes="32x32">
@@ -33,6 +33,7 @@
     <h4><span lang="zh-CN">入门</span><span lang="en">Basics</span></h4>
     <a href="#install"><span lang="zh-CN">安装</span><span lang="en">Install</span></a>
     <a href="#start"><span lang="zh-CN">快速上手</span><span lang="en">Getting started</span></a>
+    <a href="#files"><span lang="zh-CN">文件与目录</span><span lang="en">Files and folders</span></a>
     <a href="#editing"><span lang="zh-CN">编辑</span><span lang="en">Editing</span></a>
     <h4><span lang="zh-CN">内容</span><span lang="en">Content</span></h4>
     <a href="#images"><span lang="zh-CN">图片</span><span lang="en">Images</span></a>
@@ -40,6 +41,8 @@
     <a href="#diagrams"><span lang="zh-CN">图表</span><span lang="en">Diagrams</span></a>
     <h4><span lang="zh-CN">输出</span><span lang="en">Output</span></h4>
     <a href="#export"><span lang="zh-CN">导出</span><span lang="en">Export</span></a>
+    <a href="#website-export"><span lang="zh-CN">导出为网站</span><span lang="en">Export a website</span></a>
+    <a href="#website-reader"><span lang="zh-CN">离线阅读与分享</span><span lang="en">Offline reading and sharing</span></a>
     <a href="#front-matter"><span lang="zh-CN">front matter 设置</span><span lang="en">Front matter settings</span></a>
     <a href="#wechat"><span lang="zh-CN">复制到公众号</span><span lang="en">Copy for WeChat</span></a>
     <h4><span lang="zh-CN">个性化</span><span lang="en">Make it yours</span></h4>
@@ -94,7 +97,22 @@
         <li>One document per window: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>N</kbd> opens another, <kbd>Ctrl</kbd>+<kbd>Tab</kbd> cycles through them.</li>
       </ul>
     </div>
-    <div class="shot"><img data-shot="editor" src="assets/screenshots/editor-zh.jpg" width="1600" height="840" loading="lazy" alt=""></div>
+    <div class="shot"><img data-shot="editor" src="assets/screenshots/editor-zh.jpg" width="1600" height="887" loading="lazy" alt="Posemark editor and file tree"></div>
+
+    <!-- ============================================================ files -->
+    <h2 id="files"><span lang="zh-CN">文件与目录</span><span lang="en">Files and folders</span></h2>
+    <div lang="zh-CN">
+      <p>文件面板以文件夹、Markdown 文档和其他文件的图标区分内容类型。点击文件夹所在行展开或收起，展开后的层级线帮助你辨认归属；点击文件打开文稿，文件名过长时会省略显示，悬停可查看完整名称。目录顶部的“折叠所有文件夹”按钮可以一次收起全部层级。</p>
+      <p>右键文件或文件夹，可以新建、重命名、创建副本、移动到回收站或在系统文件管理器中显示。选中条目后按 <kbd>F2</kbd> 重命名；把条目拖到另一个文件夹可以移动它，拖到文件树的空白区域则移到当前根目录。“撤销上次文件操作”支持撤回重命名、移动、新建和创建副本；已经删除的文件需要从系统回收站恢复。</p>
+      <p>文件树获得焦点时，上下方向键选择条目，左右方向键展开、收起或返回上一级，<kbd>Enter</kbd> 打开文件。顶部的列表按钮在文件树与按修改时间从新到旧排列的文章列表之间切换；“更多”菜单提供自然排序、按名称或日期排序、降序，以及显示隐藏文件和所有文件类型的开关。非 Markdown 文件使用系统默认应用打开。</p>
+      <p>常用目录可以通过“更多”菜单固定，在“打开最近文件”和快速打开中更容易找到。拖动侧栏右边缘可调整宽度，应用会记住这一设置。</p>
+    </div>
+    <div lang="en">
+      <p>The Files panel distinguishes folders, Markdown documents and other files with icons. Click a folder row to expand or collapse it; guide lines show its nesting. Click a document to open it. Long names are shortened, with the full name available on hover. The Collapse all folders button closes every expanded level.</p>
+      <p>Right-click an item to create, rename, duplicate, move it to the trash or reveal it in your file manager. Press <kbd>F2</kbd> to rename the selected item. Drag it onto a folder to move it, or onto empty tree space to move it to the current root. Undo Last File Operation reverses renaming, moving, creating and duplicating. Restore deleted files from your system's trash.</p>
+      <p>With the tree focused, use Up and Down to select, Left and Right to collapse, expand or move through the hierarchy, and <kbd>Enter</kbd> to open. The list button switches between the tree and a flat list of articles, newest modified first. The more menu offers natural, name and date sorting, descending order, hidden files and all file types. Non-Markdown files open in their default application.</p>
+      <p>Pin frequently used folders from the more menu to find them in Open Recent and Quick Open. Drag the sidebar's right edge to resize it; the width is remembered.</p>
+    </div>
 
     <!-- ============================================================ editing -->
     <h2 id="editing"><span lang="zh-CN">编辑</span><span lang="en">Editing</span></h2>
@@ -105,6 +123,7 @@
       <p>点击表格就进入网格编辑：<kbd>Tab</kbd> 到下一格，<kbd>Enter</kbd> 到下一行，在最后一格按 <kbd>Tab</kbd> 会新增一行。右键单元格可以插入、删除行列，以及设置对齐方式。</p>
       <h3>代码块</h3>
       <p>用 <code>```语言</code> 开始一个代码块，会按语言高亮。光标进入代码块后显示源码，依然保持高亮。</p>
+      <p>预览中的代码块顶部显示语言名称；点击右上角“复制”可复制整段代码，成功后会显示“已复制”。显示行号与自动换行可在 <b>偏好设置 › Markdown</b> 中调整。</p>
       <h3>更多语法</h3>
       <ul>
         <li>任务列表 <code>- [ ]</code>，点击复选框即可勾选。</li>
@@ -121,6 +140,7 @@
       <p>Click a table to edit it as a grid: <kbd>Tab</kbd> moves to the next cell, <kbd>Enter</kbd> to the next row, and <kbd>Tab</kbd> in the last cell adds a row. Right-click a cell to insert or delete rows and columns, or to set the alignment.</p>
       <h3>Code blocks</h3>
       <p>Start a block with <code>```language</code> to get highlighting. With the caret inside, you see the source — still highlighted.</p>
+      <p>The preview header shows the language. Copy at the top right copies the block's code and confirms success with Copied. Line numbers and wrapping can be changed in <b>Preferences › Markdown</b>.</p>
       <h3>More syntax</h3>
       <ul>
         <li>Task lists with <code>- [ ]</code>; click a box to tick it.</li>
@@ -168,17 +188,19 @@
         <li>mhchem (<code>\ce{H2O}</code>) and the common physics-package commands (<code>\dv</code>, <code>\abs</code>, <code>\ket</code>…) are built in.</li>
       </ul>
     </div>
-    <div class="shot"><img data-shot="math" src="assets/screenshots/math-zh.jpg" width="1600" height="1000" loading="lazy" alt=""></div>
+    <div class="shot"><img data-shot="math" src="assets/screenshots/math-zh.jpg" width="1600" height="1058" loading="lazy" alt="Posemark math and diagram preview"></div>
 
     <!-- ============================================================ diagrams -->
     <h2 id="diagrams"><span lang="zh-CN">图表</span><span lang="en">Diagrams</span></h2>
     <div lang="zh-CN">
       <p><code>```mermaid</code> 代码块会绘制成 Mermaid 图表，停止输入片刻后自动重绘，语法错误会显示在预览中而不会覆盖你的文字。<code>```sequence</code>（js-sequence-diagrams）和 <code>```flow</code>（flowchart.js）语法也能识别。</p>
       <p>图表配色跟随编辑器主题，也可以在 偏好设置 › Markdown › 图表 中调整。右键图表可另存为 SVG、PNG 或复制。</p>
+      <p>图表顶部的“预览 / 源代码”按钮切换图形与 Mermaid 源码视图；切换视图不会改写文稿。右上角的展开按钮可放大图表显示区域，再点一次恢复。“更多操作”菜单提供另存为 SVG、另存为 PNG、复制为 PNG 和复制 SVG 代码，右键图表也能打开同一组操作。</p>
     </div>
     <div lang="en">
       <p>A <code>```mermaid</code> fence is drawn as a Mermaid diagram and redrawn shortly after you stop typing; a syntax error shows in the preview instead of replacing your text. <code>```sequence</code> (js-sequence-diagrams) and <code>```flow</code> (flowchart.js) syntax work too.</p>
       <p>Diagrams follow the editor theme, with options in Preferences › Markdown › Diagrams. Right-click a diagram to save it as SVG or PNG, or copy it.</p>
+      <p>Preview and Source in the header switch between the drawing and its Mermaid source without changing the document. Expand enlarges the diagram area; press it again to restore the view. More actions offers Save as SVG, Save as PNG, Copy as PNG and Copy SVG Code. The same actions are available by right-clicking the diagram.</p>
     </div>
 <pre><code>```mermaid
 flowchart LR
@@ -194,6 +216,7 @@ flowchart LR
         <li><b>HTML（无样式）</b>：只有 HTML 标记，方便粘贴到其他网站或模板。</li>
         <li><b>PDF</b>：可设置纸张（A3/A4/A5/B5/Letter 等或自定义尺寸）、横向、边距、页眉页脚、一级标题前分页。</li>
         <li><b>图片 (PNG)</b>：整篇文档渲染为一张长图，宽度可调。</li>
+        <li><b>网站…</b>：将一个目录中的多篇 Markdown 编排成可离线阅读的网站，详见<a href="#website-export">导出为网站</a>。</li>
         <li><b>使用上次设置导出</b>（<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>E</kbd>）：按上次的格式直接导出到上次的文件夹，不弹对话框。</li>
       </ul>
       <p>页眉页脚用 <code>左 | 中 | 右</code> 分成三栏，可使用变量：<code>${title}</code>、<code>${author}</code>、<code>${today}</code>、<code>${pageNo}</code>、<code>${pageCount}</code>，以及 front matter 中的任意键。例如页脚 <code>${title} | | ${pageNo} / ${pageCount}</code>。</p>
@@ -206,12 +229,56 @@ flowchart LR
         <li><b>HTML (without styles)</b>: bare markup, for pasting into another site or template.</li>
         <li><b>PDF</b>: paper size (A3/A4/A5/B5/Letter… or a custom size), landscape, margins, header and footer, a page break before every level-1 heading.</li>
         <li><b>Image (PNG)</b>: the whole document as one long picture at an adjustable width.</li>
+        <li><b>Website…</b>: arrange Markdown files from a folder into an offline reading website; see <a href="#website-export">Export a website</a>.</li>
         <li><b>Export with Previous</b> (<kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>E</kbd>): the last format into the last folder, no dialog.</li>
       </ul>
       <p>Headers and footers split into <code>left | center | right</code> and accept <code>${title}</code>, <code>${author}</code>, <code>${today}</code>, <code>${pageNo}</code>, <code>${pageCount}</code> and any front matter key — e.g. a footer of <code>${title} | | ${pageNo} / ${pageCount}</code>.</p>
       <p><code>title</code>, <code>author</code>, <code>description</code> and <code>keywords</code> from the front matter go into the PDF's document properties. The export theme, default folder and what happens after exporting live in <b>Preferences › Export</b>.</p>
     </div>
-    <div class="shot"><img data-shot="export" src="assets/screenshots/export-zh.jpg" width="1600" height="1095" loading="lazy" alt=""></div>
+    <div class="shot"><img data-shot="export" src="assets/screenshots/export-zh.jpg" width="1520" height="1040" loading="lazy" alt="Posemark export preferences"></div>
+
+    <!-- ============================================================ website -->
+    <h2 id="website-export"><span lang="zh-CN">导出为网站</span><span lang="en">Export a website</span></h2>
+    <div lang="zh-CN">
+      <p>本节介绍当前源码中的新增功能。若已安装版本还没有“网站…”菜单，需要等待包含此功能的版本发布，或从当前源码构建。网站导出页和生成的阅读器目前使用中文界面，菜单入口随应用语言切换。</p>
+      <p>先保存要收录的文章，再打开 <b>文件 › 导出 › 网站…</b>。导出页默认读取当前打开的文件夹，也可以点击“选择目录”重新选择。它读取的是磁盘上已保存的 Markdown，不包含编辑器中尚未保存的修改；更新原文后，点击“重新读取目录”刷新。</p>
+      <h3>整理内容与装帧</h3>
+      <p>“内容”页列出目录与子目录中的文章。勾选需要的章节，悬停或聚焦章节行后用上下按钮调整顺序，点击标题预览正文。文件夹路径作为分卷信息保留；章节名称依次采用 front matter 的 <code>title</code>、正文第一个一级标题，或文件名。</p>
+      <p>在“装帧”页填写书名、一句介绍和作者，选择封面颜色、纸张及正文字号。右侧使用实际阅读器预览，支持切换按章或连续阅读、桌面或手机视图，也可以放大查看。只切换预览不会改变最终的默认阅读方式；默认值在“导出”页设置。</p>
+      <h3>生成网站文件夹</h3>
+      <p>“导出”页填写网站文件夹名称，例如 <code>my-notes</code>，使用英文字母、数字、短横线或下划线，长度不超过 60 个字符。选择默认按章或连续阅读，并按需保留“记住这本书的设置”。点击“导出网站”后选择保存位置，应用会新建一个子文件夹；同名文件夹已存在时追加数字，不覆盖旧内容。</p>
+      <p>记住的装帧、章节顺序和排除项按源目录分别保存在应用配置中，不会写回 Markdown。此功能独立于单篇文档的 HTML、PDF 导出设置，也不属于“使用上次设置导出”的重复导出流程。</p>
+      <h3>资源与范围</h3>
+      <p>本地图片、附件、样式、阅读脚本和字体随网站复制，公式与 Mermaid 图表在导出前完成渲染。已收录 Markdown 文件之间的链接会转换为章节或标题跳转；被排除章节的链接会提示。网络图片等资源不会自动下载，导出时会提示仍需联网；本地资源缺失则停止导出，请修复引用或排除相关章节。</p>
+      <p>扫描跳过以点号开头的文件与目录、符号链接，以及 <code>node_modules</code> 等排除目录；最多处理 2000 篇文章，单篇上限为 20 MB。原始 HTML 中的脚本、嵌入页面、事件处理和外部样式不会保留，因此依赖这些内容的自定义交互需要重新评估。</p>
+    </div>
+    <div lang="en">
+      <p>This section covers a new feature in the current source. If your installed version has no Website… menu, wait for a release containing it or build from source. The export panel and generated reader currently use Chinese; the menu entry follows the app language.</p>
+      <p>Save the articles first, then open <b>File › Export › Website…</b>. The panel starts with your current folder; 选择目录 (Choose folder) selects another. It reads saved Markdown from disk, not unsaved editor changes. Use 重新读取目录 (Reload folder) after changing the source files.</p>
+      <h3>Arrange chapters and appearance</h3>
+      <p>内容 (Content) lists articles in the folder and its subfolders. Select the chapters to include, hover or focus a chapter row to move it up or down, and click its title to preview it. Folder paths supply group labels. Chapter titles use the front matter <code>title</code>, then the first level-one heading, then the filename.</p>
+      <p>装帧 (Appearance) sets the book title, introduction, author, cover colour, paper and text size. The real reader on the right previews chapter or continuous reading, desktop and phone views, and an expanded view. Previewing a mode does not change the exported default; set that in 导出 (Export).</p>
+      <h3>Generate the website folder</h3>
+      <p>In Export, name the output folder, for example <code>my-notes</code>, using up to 60 letters, digits, hyphens or underscores. Choose the default reading mode and whether to remember this book's settings. Click 导出网站 (Export website) and choose a destination. A new subfolder is created; a number is added if its name already exists, preserving previous exports.</p>
+      <p>Remembered appearance, order and excluded chapters are stored per source folder in the app configuration, without rewriting your Markdown. Website export has its own settings and is separate from single-document HTML/PDF export and Export with Previous.</p>
+      <h3>Resources and limits</h3>
+      <p>Local images, attachments, styles, reader scripts and fonts are copied with the website. Equations and Mermaid diagrams are rendered before export. Links between included Markdown files become chapter or heading links; links to excluded chapters produce a warning. Remote resources are not downloaded automatically and still require a connection. Missing local resources stop the export; repair the reference or exclude the chapter.</p>
+      <p>Scanning skips dot-prefixed files and folders, symbolic links and excluded directories such as <code>node_modules</code>. There is a limit of 2,000 articles and 20 MB per file. Scripts, embedded pages, event handlers and external styles in raw HTML are removed, so custom interactions depending on them are not preserved.</p>
+    </div>
+
+    <div class="shot"><img data-shot="website" src="assets/screenshots/website-zh.jpg" width="1600" height="1068" loading="lazy" alt="Posemark website export: chapter selection and reading preview"></div>
+
+    <h2 id="website-reader"><span lang="zh-CN">离线阅读与分享</span><span lang="en">Offline reading and sharing</span></h2>
+    <div lang="zh-CN">
+      <p>导出完成后可以直接打开阅读网站，或在文件夹中双击 <code>index.html</code>。产物由 <code>index.html</code> 和 <code>assets/</code> 组成，不需要服务器或额外构建。分享、移动或上传时请携带整个文件夹；只发送 HTML 文件会缺少正文、图片与样式。上传到静态托管平台后，也可通过网址访问。</p>
+      <p>封面上的“开始阅读”进入正文。顶部“目录”展开可搜索的章节侧栏，选择章节后收起，手机上目录覆盖阅读区域。正文居中单栏显示，长章节在正文区内滚动；按章模式下可用底部按钮、左右方向键或横向滑动切换章节，浏览器的前进、后退也能返回访问过的章节。</p>
+      <p>阅读器的“设置”可以切换按章阅读或连续滚动，调整字号，并选择柔和白、暖纸色、浅绿或深色纸张。阅读器会随窗口高度调整正文区域，较矮窗口会压缩工具栏与留白。外部网页链接、未打包的网络图片仍需联网。</p>
+    </div>
+    <div lang="en">
+      <p>After exporting, open the website from the completion panel or double-click <code>index.html</code>. The output contains <code>index.html</code> and <code>assets/</code>, with no server or build step required. Move, send or upload the entire folder; the HTML file alone is missing its content, images and styles. The same folder can be published on static hosting.</p>
+      <p>开始阅读 (Start reading) opens the first chapter. 目录 (Contents) opens a searchable chapter sidebar that closes after selection; on phones it fills the reading area. Long chapters scroll within a centred single-column reading surface. Chapter mode supports bottom navigation, Left/Right keys and horizontal swipes. Browser Back and Forward revisit chapters.</p>
+      <p>设置 (Settings) switches between chapter and continuous reading, changes text size and offers soft white, warm paper, pale green and dark paper. The reading area adapts to the window height, with compact toolbars and spacing in shorter windows. External web links and remote images that were not bundled still need a connection.</p>
+    </div>
 
     <!-- ============================================================ front matter -->
     <h2 id="front-matter"><span lang="zh-CN">front matter 设置</span><span lang="en">Front matter settings</span></h2>
@@ -261,7 +328,7 @@ html-outline: true
       </ul>
       <p><b>Preferences › WeChat</b> tunes the colour theme, accent colour, heading style, font size, line height, spacing and first-line indent, with a live preview of the pasted result.</p>
     </div>
-    <div class="shot"><img data-shot="wechat" src="assets/screenshots/wechat-zh.jpg" width="1600" height="844" loading="lazy" alt=""></div>
+    <div class="shot"><img data-shot="wechat" src="assets/screenshots/wechat-zh.jpg" width="1600" height="970" loading="lazy" alt="Posemark WeChat layout and preview"></div>
 
     <!-- ============================================================ themes -->
     <h2 id="themes"><span lang="zh-CN">主题与自定义 CSS</span><span lang="en">Themes and custom CSS</span></h2>
@@ -283,7 +350,7 @@ html-outline: true
         <li>a whole <code>&lt;name&gt;.css</code> becomes a theme of its own (start it with <code>/* dark */</code> to mark it dark).</li>
       </ul>
     </div>
-    <div class="shot"><img data-shot="dark" src="assets/screenshots/dark-zh.jpg" width="1600" height="876" loading="lazy" alt=""></div>
+    <div class="shot"><img data-shot="dark" src="assets/screenshots/dark-zh.jpg" width="1600" height="1058" loading="lazy" alt="Posemark dark theme with file tree"></div>
 
     <!-- ============================================================ settings -->
     <h2 id="settings"><span lang="zh-CN">设置与草稿</span><span lang="en">Settings and drafts</span></h2>
@@ -323,6 +390,8 @@ html-outline: true
         <tr><td><span lang="zh-CN">链接 / 图片</span><span lang="en">Link / Image</span></td><td><kbd>Ctrl+K</kbd> <kbd>Ctrl+Shift+I</kbd></td></tr>
         <tr><td><span lang="zh-CN">表格 / 公式块</span><span lang="en">Table / Math block</span></td><td><kbd>Ctrl+T</kbd> <kbd>Ctrl+Shift+M</kbd></td></tr>
         <tr><td><span lang="zh-CN">侧边栏 / 大纲 / 搜索 / 文件</span><span lang="en">Sidebar / Outline / Search / Files</span></td><td><kbd>Ctrl+Shift+L</kbd> <kbd>Ctrl+Shift+1</kbd> <kbd>Ctrl+Shift+2</kbd> <kbd>Ctrl+Shift+3</kbd></td></tr>
+        <tr><td><span lang="zh-CN">文件树 / 文章列表切换</span><span lang="en">Toggle tree / article list</span></td><td><kbd>Ctrl+Shift+4</kbd></td></tr>
+        <tr><td><span lang="zh-CN">文件树中重命名 / 删除</span><span lang="en">Rename / trash a selected tree item</span></td><td><kbd>F2</kbd> <kbd>Delete</kbd></td></tr>
         <tr><td><span lang="zh-CN">字数统计</span><span lang="en">Word count</span></td><td><kbd>Ctrl+Shift+W</kbd></td></tr>
         <tr><td><span lang="zh-CN">粘贴为纯文本</span><span lang="en">Paste as plain text</span></td><td><kbd>Ctrl+Shift+V</kbd></td></tr>
         <tr><td><span lang="zh-CN">复制到公众号 / 使用上次设置导出</span><span lang="en">Copy for WeChat / Export with Previous</span></td><td><kbd>Ctrl+Alt+C</kbd> <kbd>Ctrl+Alt+E</kbd></td></tr>
@@ -336,6 +405,8 @@ html-outline: true
       <p>不会。Posemark 没有账号、没有遥测，文档只保存在你自己的电脑上。只有在你配置了图床上传、或文档里引用了网络图片时才会联网，详见<a href="privacy.html">隐私政策</a>。</p>
       <h3>和 Typora 的文件兼容吗？</h3>
       <p>兼容。Posemark 读写的都是普通 Markdown 文件，也识别 Typora 的 <code>typora-copy-images-to</code>、<code>typora-root-url</code>、图片缩放写法和 <code>[TOC]</code>。</p>
+      <h3>导出的网站必须部署到服务器吗？</h3>
+      <p>不需要。保持 <code>index.html</code> 与 <code>assets/</code> 在同一文件夹，双击 HTML 即可阅读。完整打包的本地内容可离线使用；网页链接和未下载的网络资源仍需联网，详见<a href="#website-reader">离线阅读与分享</a>。</p>
       <h3>遇到问题怎么反馈？</h3>
       <p>请在 <a href="https://github.com/whyun-pages/posemark/issues">GitHub Issues</a> 提交，附上系统版本和复现步骤会很有帮助。</p>
     </div>
@@ -344,6 +415,8 @@ html-outline: true
       <p>No. There is no account and no telemetry; your documents stay on your computer. The app only goes online for images your document links to, or for uploads you set up yourself — see the <a href="privacy.html">privacy policy</a>.</p>
       <h3>Is it compatible with Typora files?</h3>
       <p>Yes. Posemark reads and writes plain Markdown and understands Typora's <code>typora-copy-images-to</code>, <code>typora-root-url</code>, image sizing and <code>[TOC]</code>.</p>
+      <h3>Does an exported website need a server?</h3>
+      <p>No. Keep <code>index.html</code> and <code>assets/</code> together and double-click the HTML file. Bundled local content works offline; external links and remote resources still need a connection. See <a href="#website-reader">Offline reading and sharing</a>.</p>
       <h3>Where do I report a problem?</h3>
       <p>Open an issue on <a href="https://github.com/whyun-pages/posemark/issues">GitHub</a>; your OS version and the steps to reproduce help a lot.</p>
     </div>

@@ -17,6 +17,19 @@
     var suffix = lang === 'en' ? 'en' : 'zh';
     document.querySelectorAll('img[data-shot]').forEach(function (img) {
       img.src = 'assets/screenshots/' + img.getAttribute('data-shot') + '-' + suffix + '.jpg';
+      var link = img.parentElement;
+      if (!link.classList.contains('screenshot-link')) {
+        link = document.createElement('a');
+        link.className = 'screenshot-link';
+        link.target = '_blank';
+        link.rel = 'noopener';
+        img.parentNode.insertBefore(link, img);
+        link.appendChild(img);
+      }
+      link.href = img.src;
+      var label = lang === 'en' ? 'View full-size screenshot (new window)' : '查看原始截图（新窗口）';
+      link.title = label;
+      link.setAttribute('aria-label', label);
     });
     var title = document.querySelector('meta[name="title-' + suffix + '"]');
     if (title) document.title = title.content;

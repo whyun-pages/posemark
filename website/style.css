@@ -41,6 +41,8 @@ body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.7 var(--
 a { color: var(--brand); text-decoration: none; }
 a:hover { text-decoration: underline; }
 img { max-width: 100%; height: auto; display: block; }
+.screenshot-link { display: block; cursor: zoom-in; }
+.screenshot-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 4px; }
 code { font-family: var(--mono); font-size: .88em; background: var(--code-bg); padding: 2px 6px; border-radius: 5px; }
 kbd { font-family: var(--mono); font-size: .82em; padding: 2px 7px; border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; background: var(--bg-card); white-space: nowrap; }
 .wrap { max-width: var(--max); margin: 0 auto; padding: 0 24px; }
@@ -158,7 +160,7 @@ section.soft { background: var(--bg-soft); }
 .docs-nav a { display: block; padding: 5px 10px; border-radius: 8px; color: var(--fg); }
 .docs-nav a:hover { background: var(--bg-soft); text-decoration: none; }
 .docs-nav a.active { background: color-mix(in srgb, var(--brand) 12%, transparent); color: var(--brand); }
-.prose { max-width: 800px; }
+.prose { max-width: 800px; min-width: 0; }
 .prose h1 { font-size: 38px; line-height: 1.2; margin: 0 0 12px; letter-spacing: -.3px; }
 .prose h2 { font-size: 26px; margin: 56px 0 14px; padding-top: 8px; border-top: 1px solid var(--border); }
 .prose h2:first-of-type { border-top: 0; }
@@ -184,10 +186,11 @@ section.soft { background: var(--bg-soft); }
   .feature-panel .copy { max-width: 65ch; }
   .feature-essentials { gap: 28px; }
   .downloads { grid-template-columns: 1fr; }
-  .docs { grid-template-columns: 1fr; }
+  .docs { grid-template-columns: minmax(0, 1fr); }
   .docs-nav { position: static; max-height: none; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
 }
 @media (max-width: 640px) {
+  .prose table { display: block; max-width: 100%; overflow-x: auto; }
   .feature-stage { padding: 0 18px 24px; }
   .feature-tabs { flex-wrap: wrap; gap: 0 20px; margin-bottom: 28px; padding: 8px 0; }
   .feature-tabs button { flex-shrink: 0; font-size: 14px; padding: 10px 0; }

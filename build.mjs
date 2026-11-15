@@ -41,15 +41,19 @@ function copyAssets() {
   fs.copyFileSync(path.join(katexDist, 'katex.min.css'), path.join(outdir, 'katex/katex.min.css'));
   copyDir(path.join(katexDist, 'fonts'), path.join(outdir, 'katex/fonts'));
   copyDir(path.join(root, 'assets'), path.join(outdir, 'assets'));
+  copyDir(path.join(root, 'src/renderer/site-export'), path.join(outdir, 'site-export'));
 }
 
 if (watch) {
   const ctx = await esbuild.context(options);
   await ctx.watch();
   copyAssets();
+  const siteContext = await esbuild.context({ ...options, entryPoints: [path.join(root, 'src/renderer/site-export/ui.js')], outfile: path.join(outdir, 'site-export/ui.js') });
+  await siteContext.watch();
   console.log('watching…');
 } else {
   await esbuild.build(options);
   copyAssets();
+  await esbuild.build({ ...options, entryPoints: [path.join(root, 'src/renderer/site-export/ui.js')], outfile: path.join(outdir, 'site-export/ui.js') });
   console.log('build ok');
 }

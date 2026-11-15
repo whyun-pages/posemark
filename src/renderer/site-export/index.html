@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>导出为网站 · Posemark 设计稿</title>
+  <link rel="icon" href="assets/logo.svg"><link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <svg class="symbols" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><defs>
+    <symbol id="folder" viewBox="0 0 24 24"><path d="M3 7V5h6l2 3h10v11H3V7Z"/></symbol>
+    <symbol id="book-icon" viewBox="0 0 24 24"><path d="M12 5v15M3 4c4-1 6-1 9 1 3-2 5-2 9-1v15c-4-1-6-1-9 1-3-2-5-2-9-1Z"/></symbol>
+    <symbol id="arrow" viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5"/></symbol>
+    <symbol id="check" viewBox="0 0 24 24"><path d="m5 12 4 4L19 6"/></symbol>
+    <symbol id="monitor" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v4m-4 0h8"/></symbol>
+    <symbol id="phone" viewBox="0 0 24 24"><rect x="6" y="2" width="12" height="20" rx="2"/><path d="M10 18h4"/></symbol>
+    <symbol id="out" viewBox="0 0 24 24"><path d="M14 3h7v7m0-7L10 14M10 3H3v18h18v-7"/></symbol>
+    <symbol id="up" viewBox="0 0 24 24"><path d="m6 14 6-6 6 6"/></symbol>
+    <symbol id="down" viewBox="0 0 24 24"><path d="m6 10 6 6 6-6"/></symbol>
+    <symbol id="file" viewBox="0 0 24 24"><path d="M5 3h9l5 5v13H5Zm9 0v6h5M8 13h8m-8 4h6"/></symbol>
+    <symbol id="info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-11v1"/></symbol>
+    <symbol id="close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></symbol>
+  </defs></svg>
+  <header class="appbar"><div class="brand"><img src="assets/logo.svg" alt="" width="23" height="23"><strong>Posemark</strong><span class="divider"></span><span>网站导出</span></div><span class="prototype">Markdown 目录 → 离线网站</span></header>
+  <main>
+    <div class="heading"><div><div class="breadcrumb">文件 <span>/</span> 导出 <span>/</span> 网站</div><h1>让散落的文字，成为一本书。</h1><p>整理章节，选好装帧，把你的 Markdown 带到浏览器里。</p></div><div class="draft-note"><span class="status-dot"></span>修改会同步到右侧预览</div></div>
+    <div class="workspace">
+      <section class="settings" aria-label="网站导出设置">
+        <nav class="tabs" aria-label="设置步骤"><button class="active" data-tab="content" aria-current="step"><span>1</span>内容</button><button data-tab="appearance"><span>2</span>装帧</button><button data-tab="output"><span>3</span>导出</button></nav>
+        <div class="panel" id="content-panel">
+          <div class="panel-heading"><h2>从一个目录开始</h2><button class="text-button" id="choose-folder">选择目录</button></div>
+          <div class="source"><svg class="icon"><use href="#folder"/></svg><div><strong id="source-name">尚未选择目录</strong><span id="source-path">选择一个 Markdown 目录</span></div><span class="sample-label">本地</span></div>
+          <input id="folder-input" type="file" webkitdirectory multiple hidden>
+          <div class="section-line"><h3>章节目录</h3><span id="chapter-count"></span></div>
+          <p class="hint">勾选需要的文章，选中章节可直接预览。</p>
+          <div id="chapter-list" class="chapter-list"></div>
+          <div class="chapter-tools"><button class="text-button" id="select-all">全部选中</button><span>悬停或聚焦章节可调整顺序</span></div>
+          <div class="aside-note"><svg class="icon"><use href="#info"/></svg><p>目录层级作为分卷信息，文件成为章节。导出使用磁盘上已保存的内容，请先保存编辑中的文章。</p></div>
+          <button class="next-step" data-next="appearance">接下来，设计装帧 <svg class="icon"><use href="#arrow"/></svg></button>
+        </div>
+        <div class="panel" id="appearance-panel" hidden>
+          <h2>给文字一副好装帧</h2><p class="hint">书名、纸色和封面，都会出现在阅读网站中。</p>
+          <label class="field">书名<input id="book-title" value="" maxlength="40"></label>
+          <label class="field">一句介绍<input id="book-subtitle" value="" maxlength="80"></label>
+          <label class="field">作者<input id="book-author" value="" maxlength="30"></label>
+          <div class="field">封面颜色<div class="swatches" role="group" aria-label="封面颜色"><button class="selected" data-color="#264a70" style="--swatch:#264a70" aria-label="墨蓝" aria-pressed="true"></button><button data-color="#435849" style="--swatch:#435849" aria-label="松绿" aria-pressed="false"></button><button data-color="#874f40" style="--swatch:#874f40" aria-label="陶红" aria-pressed="false"></button><button data-color="#4b4855" style="--swatch:#4b4855" aria-label="石紫" aria-pressed="false"></button></div></div>
+          <label class="field">纸张<select id="paper"><option value="warm">暖白纸</option><option value="white">纯白纸</option></select></label>
+          <label class="field">正文字号<select id="font-size"><option value="15">标准</option><option value="17">舒适大字</option></select></label>
+          <button class="next-step" data-next="output">接下来，设置导出 <svg class="icon"><use href="#arrow"/></svg></button>
+        </div>
+        <div class="panel" id="output-panel" hidden>
+          <h2>准备好，和读者见面</h2><p class="hint">生成可独立浏览、可部署到静态托管平台的网站文件夹。</p>
+          <label class="field">网站文件夹名称<input id="output-name" value="my-book" maxlength="60" pattern="[A-Za-z0-9_-]+" aria-describedby="name-hint"></label><p class="hint" id="name-hint">使用英文字母、数字、短横线或下划线。</p>
+          <div class="field">默认阅读方式<div class="segmented wide" id="default-mode"><button class="active" data-default="book" aria-pressed="true">按章阅读</button><button data-default="flow" aria-pressed="false">连续阅读</button></div></div>
+          <label class="check-option"><input type="checkbox" id="remember" checked><span><strong>记住这本书的设置</strong><small>下次打开同一目录时继续使用</small></span></label>
+          <div class="delivery"><strong id="output-folder-label">my-book/</strong><p>index.html<span>双击打开</span><br>assets/<span>正文、资源与样式</span></p></div>
+          <div class="aside-note"><svg class="icon"><use href="#info"/></svg><p>导出会创建新的文件夹，包含正文、本地图片和附件。双击 index.html 即可离线阅读，也可以上传到静态托管平台。</p></div>
+        </div>
+      </section>
+      <section class="preview" aria-label="阅读网站预览">
+        <div class="preview-toolbar"><div class="preview-label"><span class="status-dot"></span>阅读预览</div><div class="segmented" id="read-mode"><button class="active" data-mode="book" aria-pressed="true">翻页</button><button data-mode="flow" aria-pressed="false">连续</button></div><span class="toolbar-separator"></span><div class="segmented devices"><button class="active" data-device="desktop" aria-label="桌面预览" aria-pressed="true"><svg class="icon"><use href="#monitor"/></svg></button><button data-device="mobile" aria-label="手机预览" aria-pressed="false"><svg class="icon"><use href="#phone"/></svg></button></div><button class="icon-button expand" id="expand" aria-label="放大阅读预览"><svg class="icon"><use href="#out"/></svg></button></div>
+        <div class="live-preview"><iframe id="site-preview" title="阅读网站实时预览" sandbox="allow-scripts allow-same-origin allow-popups"></iframe></div><div class="preview-bottom"><svg class="icon"><use href="#book-icon"/></svg><span>专注阅读模板</span><span class="preview-description">居中单栏 · 按需展开目录 · 支持连续阅读</span></div>
+      </section>
+    </div>
+    <footer class="export-footer"><div><span id="summary">尚未选择目录</span><small>导出网站文件夹，可离线阅读或上传分享</small></div><div class="footer-actions"><button class="secondary" id="reset">重新读取目录</button><button class="primary" id="export"><svg class="icon"><use href="#download"/></svg><span>导出网站</span></button></div></footer>
+  </main>
+  <dialog id="result"><button class="icon-button dialog-close" aria-label="关闭导出结果"><svg class="icon"><use href="#close"/></svg></button><div class="success-icon"><svg class="icon"><use href="#check"/></svg></div><h2>你的网站，准备好了。</h2><p>正文、本地图片与附件已打包。双击 index.html 即可阅读，也可以将整个文件夹上传分享。</p><div class="result-detail"><strong id="result-title"></strong><span id="result-summary"></span><code id="result-path"></code></div><div class="result-actions"><button class="secondary" id="return-settings">返回设置</button><button class="secondary" id="reveal-output">打开文件夹</button><button class="primary" id="open-reader">打开网站<svg class="icon"><use href="#arrow"/></svg></button></div></dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <script src="ui.js"></script>
+</body>
+</html>

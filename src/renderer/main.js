@@ -42,6 +42,7 @@ import { renderWeChatPanel, wechatStyleFrom } from './wechat-prefs.js';
 import { basename, dirOf, resolveFile, imageMarkdownPath, imageFolderFor, parseImageTag, isAbsolutePath, joinDir } from './paths.js';
 import { buildOutlineTree, currentHeadingIndex, outlineMatches, outlineKeys } from './outline.js';
 import { countText, readingTime, formatReadingTime } from './wordcount.js';
+import { fileTreeIcon, treeIcon, disclosureIcon } from './tree-icons.js';
 
 const $ = (sel) => document.querySelector(sel);
 const debounce = (fn, ms) => {
@@ -653,20 +654,39 @@ function renderOutline() {
     const key = S.outlineKeys[node.index];
     const collapsed = !flat && S.outlineCollapsed.has(key);
     const row = document.createElement('div');
-    row.className = `outline-item level-${node.level}`;
+    row.className = `outline-item level-${node.level}${!flat && node.children.length && !collapsed ? ' expanded' : ''}`;
     row.dataset.index = String(node.index);
-    row.style.paddingLeft = `${(flat ? node.level - minLevel : depth) * 14 + 8}px`;
-    const twisty = document.createElement('span');
+    row.style.paddingLeft = `${(flat ? node.level - minLevel : depth) * 18 + 8}px`;
+    if (!flat) for (let level = 0; level < depth; level++) {
+      const guide = document.createElement('span');
+      guide.className = 'outline-guide';
+      guide.style.left = `${level * 18 + 15}px`;
+      guide.setAttribute('aria-hidden', 'true');
+      row.appendChild(guide);
+    }
+    const canCollapse = !flat && node.children.length > 0;
+    const twisty = document.createElement(canCollapse ? 'button' : 'span');
     twisty.className = 'twisty';
-    twisty.textContent = !flat && node.children.length ? (collapsed ? '▸' : '▾') : '';
+    if (canCollapse) {
+      twisty.type = 'button';
+      twisty.innerHTML = disclosureIcon();
+      twisty.setAttribute('aria-expanded', String(!collapsed));
+      twisty.setAttribute('aria-label', `${tr(collapsed ? 'Expand heading' : 'Collapse heading')}: ${node.text}`);
+    } else twisty.setAttribute('aria-hidden', 'true');
+    const icon = document.createElement('span');
+    icon.className = 'outline-icon';
+    icon.innerHTML = treeIcon('heading');
     const text = document.createElement('span');
     text.className = 'outline-text';
     renderMatch(text, node.text || '(untitled)', query);
     row.title = node.text;
-    row.append(twisty, text);
+    row.append(twisty, icon, text);
     twisty.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (!canCollapse) return;
+      const focused = document.activeElement === twisty;
       toggleOutlineCollapse(key);
+      if (focused) host.querySelector(`[data-index="${node.index}"] .twisty`)?.focus();
     });
     row.addEventListener('click', () => {
       S.view.dispatch({
@@ -1038,6 +1058,20 @@ function wireTree() {
     openCtxMenu(r.left, r.bottom + 2, treeViewMenuItems());
   });
 
+  $('#btn-tree-collapse').addEventListener('click', () => {
+    S.expanded.clear();
+    host.querySelectorAll('.tree-children').forEach((children) => { children.hidden = true; });
+    host.querySelectorAll('.tree-item.dir').forEach((row) => {
+      row.classList.remove('expanded');
+      row.setAttribute('aria-expanded', 'false');
+    });
+    // A nested selection must not remain hidden from keyboard navigation.
+    let row = S.treeSel?.row;
+    while (row?.parentElement?.classList.contains('tree-children')) row = row.parentElement.previousElementSibling;
+    if (row?.isConnected) selectTreeRow(row);
+    host.focus();
+  });
+
   host.addEventListener('click', (e) => {
     if (!e.target.closest('.ctx-menu')) closeCtxMenu();
     const row = e.target.closest('.tree-item');
@@ -1200,6 +1234,7 @@ async function setFolder(dir, { persist = true } = {}) {
   $('#folder-name').title = dir || '';
   $('#btn-tree-menu').hidden = !dir;
   $('#btn-files-view').hidden = !dir;
+  $('#btn-tree-collapse').hidden = !dir || S.filesView === 'list';
   if (persist && dir) await window.ink.setConfig({ lastFolder: dir });
   window.ink.watchFolder(dir || null);
   renderFiles();
@@ -1210,6 +1245,7 @@ function setFilesView(view, { persist = false } = {}) {
   S.filesView = view === 'list' ? 'list' : 'tree';
   $('#filetree').hidden = S.filesView !== 'tree';
   $('#filelist').hidden = S.filesView !== 'list';
+  $('#btn-tree-collapse').hidden = !S.folder || S.filesView !== 'tree';
   const btn = $('#btn-files-view');
   btn.classList.toggle('on', S.filesView === 'list');
   btn.title = S.filesView === 'list' ? 'Show as tree' : 'Show as list (all notes, newest first)';
@@ -1331,11 +1367,11 @@ async function renderTree() {
   const root = document.createElement('div');
   root.className = 'tree-root';
   host.appendChild(root);
-  await fillTree(S.folder, root, 0);
+  await fillTree(S.folder, root);
   highlightTreeSelection();
 }
 
-async function fillTree(dir, container, depth) {
+async function fillTree(dir, container) {
   let entries = S.treeCache.get(dir);
   if (!entries) {
     entries = await window.ink.readDir(dir);
@@ -1346,35 +1382,42 @@ async function fillTree(dir, container, depth) {
     row.className = `tree-item ${entry.dir ? 'dir' : 'file'}${entry.markdown === false ? ' other' : ''}`;
     row.dataset.path = entry.path;
     row.draggable = true;
-    row.style.paddingLeft = `${depth * 12 + 10}px`;
+    row.title = entry.name;
     const twisty = document.createElement('span');
     twisty.className = 'twisty';
-    twisty.textContent = entry.dir ? '▸' : '';
+    twisty.setAttribute('aria-hidden', 'true');
+    if (entry.dir) twisty.innerHTML = disclosureIcon();
+    const icon = document.createElement('span');
+    icon.className = 'tree-icon';
+    icon.innerHTML = fileTreeIcon(entry);
     const label = document.createElement('span');
     label.className = 'tree-label';
     label.textContent = entry.name;
-    row.append(twisty, label);
+    row.append(twisty, icon, label);
     container.appendChild(row);
 
     if (entry.dir) {
+      row.setAttribute('aria-expanded', 'false');
       const children = document.createElement('div');
       children.className = 'tree-children';
       children.hidden = true;
       container.appendChild(children);
       const open = async () => {
         children.hidden = false;
-        twisty.textContent = '▾';
+        row.classList.add('expanded');
+        row.setAttribute('aria-expanded', 'true');
         S.expanded.add(norm(entry.path).toLowerCase());
         if (!children.dataset.loaded) {
           children.dataset.loaded = '1';
-          await fillTree(entry.path, children, depth + 1);
+          await fillTree(entry.path, children);
           highlightTreeSelection();
         }
       };
       row.addEventListener('click', async () => {
         if (!children.hidden) {
           children.hidden = true;
-          twisty.textContent = '▸';
+          row.classList.remove('expanded');
+          row.setAttribute('aria-expanded', 'false');
           S.expanded.delete(norm(entry.path).toLowerCase());
           return;
         }
@@ -2295,7 +2338,10 @@ function applyRuntimeConfig() {
       if (lang === currentLanguage()) return;
       setLanguage(lang);
       // editor widgets (table hint, contents block…) are rebuilt in the new language
-      if (S.view) refreshLivePreview(S.view);
+      if (S.view) {
+        refreshLivePreview(S.view);
+        renderOutline();
+      }
     });
   }
   if (appliedConfig && S.view) {
@@ -2651,6 +2697,7 @@ const commands = {
   'export:htmlPlain': () => exportAs('html-plain'),
   'export:pdf': () => exportAs('pdf'),
   'export:png': () => exportAs('png'),
+  'export:website': () => window.ink.openWebsiteExport(S.folder || dirOf(S.path)),
   'export:previous': () => exportPrevious(),
   'export:print': () => exportAs('pdf'),
   'export:copyHtml': () => copyHtml(),

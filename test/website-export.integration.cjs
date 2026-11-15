@@ -1,0 +1,108 @@
+const {app,BrowserWindow,ipcMain,dialog}=require('electron');
+app.commandLine.appendSwitch('force-device-scale-factor','1');
+const fs=require('node:fs/promises'),path=require('node:path');
+const {registerWebsiteExport}=require('../src/main/website-window');
+const root=path.resolve(__dirname,'..'),source=path.join(root,'tmp/website-demo-source'),output=path.join(root,'tmp/website-demo-output'),review=path.join(root,'.impeccable/review/website-export');
+const profile=path.join(root,'tmp/website-test-profile-'+process.pid);
+require('node:fs').mkdirSync(profile,{recursive:true});app.setPath('userData',profile);
+const checks=[],errors=[];let owner,editor,reader,exported;
+const code=(win,source)=>win.webContents.executeJavaScript(source);
+async function until(fn,label){for(let i=0;i<150;i++){try{const result=await fn();if(result)return result;}catch{}await new Promise(r=>setTimeout(r,100));}throw new Error('等待失败：'+label);}
+async function check(label,fn){if(!await fn())throw new Error(label);checks.push(label);}
+async function capture(win,name){await code(win,`document.querySelectorAll('.flipping').forEach(e=>e.classList.remove('flipping'));if(document.querySelector('#toast'))document.querySelector('#toast').hidden=true;window.scrollTo(0,0)`);await new Promise(r=>setTimeout(r,200));await fs.writeFile(path.join(review,name+'.png'),(await win.webContents.capturePage()).toPNG());}
+app.whenReady().then(async()=>{try{
+ setTimeout(()=>{console.error('integration deadline',errors);app.exit(2);},45000);
+ await fs.mkdir(path.join(source,'第一卷'),{recursive:true});await fs.mkdir(output,{recursive:true});await fs.mkdir(review,{recursive:true});
+ await fs.copyFile(path.join(root,'website/assets/logo.svg'),path.join(source,'posemark.svg'));
+ await fs.writeFile(path.join(source,'00-序言.md'),'---\ntitle: 写在翻开之前\nauthor: 林间\n---\n# 写在翻开之前\n\n很多时候，我们写下的并不是什么大事。是早起时照进厨房的一束光，是散步路上认出的一棵树，也是读到一句好话时，想要留住它的心情。\n\n这些文字原本散落在不同的文件里。直到把它们放在一起，才发现，日子已经悄悄有了自己的章节。\n\n这本小书，留给那些不急着抵达的时刻。也留给愿意停下来，认真看一看生活的你。\n\n<img src="posemark.svg" width="48" alt="Posemark">\n\n[从散步开始](第一卷/01-去散步吧.md#街角的风景)\n\n本文为功能验收创作的示例文章。\n');
+ await fs.writeFile(path.join(source,'第一卷/01-去散步吧.md'),'# 去散步吧\n\n出门的时候，天刚刚放晴。没有想好要去哪里，只是沿着熟悉的小路往前走。\n\n## 街角的风景\n\n风吹过树梢，路边的小店刚刚开门。\n\n> 走得慢一点，也是一种抵达。\n\n| 时刻 | 发现 |\n| --- | --- |\n| 清晨 | 叶片上的露水 |\n| 傍晚 | 归家的灯光 |\n\n[回到序言](../00-序言.md)\n\n'+Array.from({length:12},(_,i)=>`第 ${i+1} 段。文字在书页内自然延展，可以滚动阅读，不会因为页面的高度而丢失。`).join('\n\n'));
+ await fs.writeFile(path.join(source,'第一卷/02-把想法画出来.md'),'# 把想法画出来\n\n公式也能在离线网页中保留。\n\n$$E = mc^2$$\n\n```mermaid\nflowchart LR\n A[写下想法] --> B[整理章节] --> C[导出一本书]\n```\n\n```javascript\nconst book = { title: "日常手记", chapters: 3 };\nconsole.log(book.title);\n```\n\n<script>window.UNSAFE_MARKER=true</script>\n<a href="javascript:alert(1)" onclick="alert(1)">不安全链接会被清理</a>');
+ let config={};
+ ipcMain.handle('config:get',()=>({}));ipcMain.handle('file:reveal',()=>true);ipcMain.handle('shell:openPath',()=>true);
+ ipcMain.handle('app:confirm',()=>0);
+ const katexRoot=path.join(root,'node_modules/katex/dist');
+ let css=await fs.readFile(path.join(katexRoot,'katex.min.css'),'utf8');
+ const fontUrls=[...new Set([...css.matchAll(/url\(([^)]+)\)/g)].map(m=>m[1]))];
+ for(const url of fontUrls){const bytes=await fs.readFile(path.join(katexRoot,url));css=css.replaceAll('url('+url+')','url(data:font/woff2;base64,'+bytes.toString('base64')+')');}
+ ipcMain.handle('katex:css',()=>css);
+ dialog.showOpenDialog=async()=>({canceled:false,filePaths:[output]});
+ registerWebsiteExport({cfg:key=>config[key],patch:values=>Object.assign(config,values)});
+ app.on('browser-window-created',(_event,win)=>{win.webContents.on('console-message',event=>{if(event.level==='error'||event.level===3)errors.push(event.message);});});
+ owner=new BrowserWindow({show:false,webPreferences:{preload:path.join(root,'src/main/preload.js'),contextIsolation:true,nodeIntegration:false}});
+ await fs.writeFile(path.join(root,'tmp/website-owner.html'),'<!doctype html><title>test owner</title>');await owner.loadFile(path.join(root,'tmp/website-owner.html'));
+ await code(owner,'window.ink.openWebsiteExport('+JSON.stringify(source)+')');
+
+ editor=BrowserWindow.getAllWindows().find(win=>win.id!==owner.id);
+ await until(()=>code(editor,`document.querySelector('#summary').textContent.includes('3')&&!document.querySelector('#export').disabled`),'真实导出界面读取 Markdown');
+
+ await check('实际导出界面读取3篇文章',()=>code(editor,`document.querySelectorAll('.chapter-row').length===3`));
+ const frame=()=>({executeJavaScript:source=>code(editor,`document.querySelector('#site-preview').contentWindow.eval(${JSON.stringify(source)})`)});
+ await until(()=>frame()?.executeJavaScript(`document.querySelector('.cover')!==null`),'真实阅读器预览');
+ await check('预览使用真实阅读器',()=>frame().executeJavaScript(`document.querySelector('#directory-toggle')!==null&&document.querySelector('#bookmarks')===null`));
+ await frame().executeJavaScript(`document.querySelector('[data-start]').click();document.querySelector('.prose a').click();document.querySelector('.book-wrap').classList.remove('flipping')`);
+ await check('预览跨章节链接同样可跳转',()=>frame().executeJavaScript(`document.querySelector('#position-label').textContent==='去散步吧'`));
+ await frame().executeJavaScript(`document.querySelector('#site-title').click();document.querySelector('.book-wrap').classList.remove('flipping')`);
+ await code(editor,`document.querySelector('[data-tab="appearance"]').click();document.querySelector('#book-title').value='日常，值得成书。';document.querySelector('#book-title').dispatchEvent(new Event('input'));document.querySelector('#book-author').value='林间';document.querySelector('#book-author').dispatchEvent(new Event('input'))`);
+ await until(()=>frame()?.executeJavaScript(`document.querySelector('.cover h2')?.textContent==='日常，值得成书。'`),'装帧更新');
+ await capture(editor,'export-settings');
+ await code(editor,`document.querySelector('[data-tab="output"]').click();document.querySelector('#output-name').value='everyday-notes';document.querySelector('#output-name').dispatchEvent(new Event('input'));document.querySelector('#export').click()`);
+ await until(()=>code(editor,`document.querySelector('#result').open`),'真实导出');
+ exported=await code(editor,`document.querySelector('#result-path').textContent`);
+ await check('导出完成并生成文件',async()=>!!(await fs.stat(exported)).isFile());
+ await check('记住目录设置',async()=>config.websiteBooks[source]?.author==='林间');
+ await capture(editor,'export-result');
+ reader=new BrowserWindow({show:false,width:1440,height:1000,useContentSize:true,webPreferences:{contextIsolation:true,nodeIntegration:false,offscreen:true,backgroundThrottling:false}});
+ await reader.loadFile(exported);await code(reader,'document.fonts.ready.then(()=>true)');
+ await check('file协议直接打开',()=>code(reader,`location.protocol==='file:'&&document.querySelector('.cover h2').textContent==='日常，值得成书。'`));
+ await capture(reader,'reader-cover');
+ await check('封面独立展示',()=>code(reader,`document.querySelectorAll('#book .page').length===1&&!document.querySelector('.book-contents')`));
+ await code(reader,`document.querySelector('[data-start]').click()`);
+ await until(()=>code(reader,`[...document.images].every(i=>i.complete&&i.naturalWidth>0)`),'离线图片');
+ await check('图片已复制到产物',()=>code(reader,`document.querySelector('.prose img').getAttribute('src').startsWith('assets/files/')`));
+ await check('无源文件绝对路径',async()=>!(await fs.readFile(path.join(path.dirname(exported),'assets/book-data.js'),'utf8')).includes('file:///'));
+ await capture(reader,'reader-desktop');
+ await code(reader,`document.querySelector('#settings-toggle').click();document.querySelector('#font-increase').click();document.querySelector('[data-reader-paper="dark"]').click()`);
+ await check('设置可调整字号和纸色',()=>code(reader,`!document.querySelector('#reader-settings').hidden&&document.querySelector('#font-value').value==='18'&&getComputedStyle(document.body).backgroundColor==='rgb(41, 46, 43)'`));
+ await capture(reader,'reader-settings-dark');
+ await code(reader,`document.querySelector('[data-reader-paper="white"]').click();document.querySelector('#settings-close').click()`);
+ await check('正文单栏且没有目录纸页',()=>code(reader,`document.querySelectorAll('#book .page').length===1&&!document.querySelector('.page.left')&&!document.querySelector('.book-contents')`));
+ await code(reader,`document.querySelector('.prose a').click()`);
+ await check('跨章节链接与锚点',()=>code(reader,`document.querySelector('#position-label').textContent==='去散步吧'&&location.hash.includes('~')`));
+ await code(reader,`document.querySelector('#directory-toggle').click();document.querySelector('#directory-search').value='想法';document.querySelector('#directory-search').dispatchEvent(new Event('input'))`);
+ await check('单一目录搜索章节',()=>code(reader,`document.querySelectorAll('#directory-list button').length===1`));
+ await capture(reader,'reader-directory');
+ await code(reader,`document.querySelector('#directory-list button').click();document.querySelector('.book-wrap').classList.remove('flipping')`);
+ await check('公式和Mermaid预渲染',()=>code(reader,`document.querySelector('.katex')!==null&&document.querySelector('.mermaid svg')!==null`));
+ await check('移除不安全HTML',()=>code(reader,`!window.UNSAFE_MARKER&&!document.querySelector('.prose script')&&!document.querySelector('.prose [onclick]')&&!document.querySelector('.prose a[href^="javascript:"]')`));
+ await code(reader,`const pre=document.querySelector('.prose pre');for(const [type,x] of [['touchstart',50],['touchend',220]])pre.dispatchEvent(new TouchEvent(type,{bubbles:true,changedTouches:[new Touch({identifier:1,target:pre,clientX:x,clientY:200})]}))`);
+ await check('横向阅读代码不误触翻章',()=>code(reader,`document.querySelector('#position-label').textContent==='把想法画出来'`));
+ await capture(reader,'reader-rich-content');
+ await code(reader,`document.querySelector('[data-read-mode="flow"]').click()`);
+ await check('连续阅读包含全部正文',()=>code(reader,`document.querySelectorAll('[data-page]').length===3&&document.querySelector('#book').classList.contains('flow-book')`));
+ await code(reader,`document.querySelector('#directory-toggle').click();document.querySelector('#directory-search').value='';document.querySelector('#directory-search').dispatchEvent(new Event('input'));document.querySelector('#directory-list button').click()`);
+ await check('连续阅读目录可跳转',()=>code(reader,`location.hash.includes('ch-')`));
+ await code(reader,`document.querySelector('#next').click()`);
+ await check('连续阅读章节导航同步进度',()=>code(reader,`document.querySelector('#position-label').textContent==='去散步吧'&&document.querySelector('#position-count').textContent.startsWith('2 / 3')`));
+ await code(reader,`document.querySelector('[data-read-mode="book"]').click();document.querySelector('.book-wrap').classList.remove('flipping')`);
+ reader.setContentSize(390,844);await capture(reader,'reader-mobile');
+ await check('手机无横向溢出',()=>code(reader,`document.documentElement.scrollWidth<=innerWidth`));
+ await code(reader,`document.querySelector('#directory-toggle').click()`);await capture(reader,'reader-mobile-directory');
+ await check('手机目录可见',()=>code(reader,`!document.querySelector('#reader-directory').hidden&&document.querySelector('#reader-directory').getBoundingClientRect().width>200`));
+ await code(reader,`document.querySelector('#directory-close').click();document.querySelector('#directory-toggle').click();document.querySelector('#directory-list').innerHTML=Array.from({length:100},(_,i)=>'<button>第 '+(i+1)+' 章</button>').join('')`);
+ await check('100章目录独立滚动',()=>code(reader,`document.querySelector('#directory-list').scrollHeight>document.querySelector('#directory-list').clientHeight&&document.querySelector('#reader-directory').getBoundingClientRect().height<=document.querySelector('#book').getBoundingClientRect().height`));
+ await capture(reader,'reader-many-chapters');
+ await code(reader,`document.querySelector('#directory-close').click()`);
+ for(const [width,height] of [[1366,768],[1280,600],[1024,500],[844,390],[390,600]]){
+   reader.setContentSize(width,height);
+   await check(`低高度 ${width}×${height} 书页与翻章按钮在一屏内`,()=>code(reader,`(()=>{const controls=document.querySelector('.reader-controls').getBoundingClientRect(),book=document.querySelector('#book').getBoundingClientRect();return document.documentElement.scrollHeight<=innerHeight+1&&controls.bottom<=innerHeight&&book.height>140&&document.querySelector('#directory-toggle').getBoundingClientRect().top>=0})()`));
+   await capture(reader,`reader-compact-${width}-${height}`);
+ }
+ await code(reader,`document.querySelector('[data-read-mode="flow"]').click()`);
+ await check('低高度连续阅读仍可正常滚动',()=>code(reader,`document.querySelector('#book').scrollHeight>document.querySelector('#book').clientHeight&&getComputedStyle(document.querySelector('#book')).overflowY==='auto'`));
+ const moved=path.join(output,'portable-check-'+Date.now());await fs.cp(path.dirname(exported),moved,{recursive:true});await reader.loadFile(path.join(moved,'index.html'));await until(()=>code(reader,`[...document.images].every(i=>i.complete&&i.naturalWidth>0)`),'移动后的离线图片');
+ await code(reader,`document.querySelector('[data-start]').click()`);await until(()=>code(reader,`document.querySelector('.prose img')?.naturalWidth>0`),'移动后的正文图片');
+ await check('移动整个产物后仍可离线打开',()=>code(reader,`document.querySelector('.prose img').naturalWidth>0`));
+ console.log(JSON.stringify({exported,checks,errors},null,2));
+ if(errors.length)throw new Error(errors.join('\n'));
+ app.exit(0);
+}catch(error){if(editor)console.error(await code(editor,`JSON.stringify({toast:document.querySelector('#toast')?.textContent,summary:document.querySelector('#summary')?.textContent,ink:!!window.ink})`));console.error(error.stack,errors);app.exit(1);}});

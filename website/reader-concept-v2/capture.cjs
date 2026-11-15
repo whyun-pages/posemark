@@ -1,0 +1,4 @@
+const {app,BrowserWindow}=require('electron');
+const fs=require('node:fs/promises');const path=require('node:path');
+app.commandLine.appendSwitch('force-device-scale-factor','1');
+app.whenReady().then(async()=>{try{const win=new BrowserWindow({width:1366,height:768,useContentSize:true,show:false,webPreferences:{nodeIntegration:false,contextIsolation:true}});await win.loadFile(path.join(__dirname,'index.html'));for(const state of ['reading','contents','settings']){if(state!=='reading')await win.webContents.executeJavaScript(`toggle('${state}')`);await new Promise(r=>setTimeout(r,250));await fs.writeFile(path.join(__dirname,state+'.png'),(await win.webContents.capturePage()).toPNG());}console.log('设计图已生成：reading.png / contents.png / settings.png');app.quit()}catch(e){console.error(e);app.exit(1)}});

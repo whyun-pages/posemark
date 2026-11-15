@@ -79,6 +79,7 @@ function buildMenu(opts) {
             item('HTML (without styles)', 'export:htmlPlain'),
             item('PDF', 'export:pdf'),
             item('Image (PNG)', 'export:png'),
+            item('Website…', 'export:website'),
             { type: 'separator' },
             item(lastExport ? `Export with Previous (${EXPORT_LABELS[lastExport.format] || lastExport.format})` : 'Export with Previous', 'export:previous', 'CmdOrCtrl+Alt+E', { enabled: !!lastExport }),
             { type: 'separator' },

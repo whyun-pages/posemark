@@ -27,6 +27,7 @@
     "start": "node build.mjs && electron .",
     "dev": "node build.mjs --watch",
     "test": "node --test \"test/**/*.test.mjs\"",
+    "test:website": "node build.mjs && electron test/website-export.integration.cjs",
     "dist": "node build.mjs && electron-builder --publish never",
     "dist:store": "node build.mjs && electron-builder --win appx --x64 --publish never -c.toolsets.winCodeSign=1.1.0",
     "icons": "electron build/make-icons.js"

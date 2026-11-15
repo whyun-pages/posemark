@@ -10,19 +10,24 @@ const site = path.join(here, '..');
 const root = path.join(site, '..');
 const assets = path.join(site, 'assets');
 const shotsDir = path.join(assets, 'screenshots');
+app.setPath('userData', process.env.POSEMARK_SHOT_PROFILE);
+app.disableHardwareAcceleration();
+app.commandLine.appendSwitch('force-device-scale-factor', '1');
 
 app.whenReady().then(async () => {
   let code = 0;
   try {
     fs.mkdirSync(shotsDir, { recursive: true });
     const raw = path.join(here, 'out');
-    const pngs = fs.existsSync(raw) ? fs.readdirSync(raw).filter((f) => f.endsWith('.png')) : [];
-    for (const f of pngs) {
+    const captures = ['zh', 'en'].flatMap(lang => JSON.parse(fs.readFileSync(path.join(raw, `manifest-${lang}.json`), 'utf8')));
+    const dimensions = {};
+    for (const { file: f } of captures) {
       const img = nativeImage.createFromPath(path.join(raw, f));
       const { width } = img.getSize();
       const web = width > 1600 ? img.resize({ width: 1600, quality: 'best' }) : img;
       fs.writeFileSync(path.join(shotsDir, f.replace(/\.png$/, '.jpg')), web.toJPEG(86));
       const size = web.getSize();
+      dimensions[f.replace(/\.png$/, '.jpg')] = size;
       console.log(`${f.replace(/\.png$/, '.jpg')} ${size.width}x${size.height}`);
     }
 
@@ -35,10 +40,13 @@ app.whenReady().then(async () => {
     const win = new BrowserWindow({ show: false, width: 1200, height: 630, useContentSize: true });
     await win.loadFile(path.join(here, 'og.html'));
     await win.webContents.executeJavaScript('document.fonts.ready.then(() => new Promise((r) => setTimeout(r, 300)))');
-    const card = await win.webContents.capturePage();
+    await win.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true });
+    await new Promise(resolve => setTimeout(resolve, 200));
+    const card = await win.webContents.capturePage(undefined, { stayHidden: true, stayAwake: true });
     fs.writeFileSync(path.join(assets, 'og.png'), card.resize({ width: 1200, height: 630, quality: 'best' }).toPNG());
     win.destroy();
-    console.log(`site assets: ${pngs.length} screenshots, logo, favicons, og.png`);
+    fs.writeFileSync(path.join(raw, 'dimensions.json'), JSON.stringify(dimensions, null, 2));
+    console.log(`site assets: ${captures.length} screenshots, logo, favicons, og.png`);
   } catch (err) {
     console.error(err);
     code = 1;

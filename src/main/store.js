@@ -80,6 +80,7 @@ const DEFAULTS = {
   // export (front matter keys like `pdf-paper` override these per document)
   exportTheme: 'current', // 'current' = the editor's theme
   exportFolder: '', // '' = next to the document
+  websiteBooks: {}, // per-source-directory website order, selection and book settings
   exportOpenAfter: 'none', // 'none' | 'open' | 'reveal'
   exportImageWidth: 860,
   pdfPaperSize: 'A4',
