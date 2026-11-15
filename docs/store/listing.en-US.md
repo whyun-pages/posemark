@@ -2,18 +2,18 @@
 
 Paste each fenced block into the matching Partner Center field (Store listings › English (United States)).
 Field limits are taken from Microsoft Learn ("Add and edit Store listing info for MSIX app",
-"App screenshots, images, and trailers", Store FAQ) as of 2026-10; limits marked *(assumed)* could not be
+"App screenshots, images, and trailers", Store FAQ), with primary fields checked on 2026-11-15; limits marked *(assumed)* could not be
 confirmed in current docs and should be re-checked against the live Partner Center form.
 
 | Field | Limit | Used |
 | --- | --- | --- |
 | Product name | must match a reserved name | `Posemark` |
-| Description | required, ≤ 10,000 chars, plain text, no HTML / code / URLs | see below (3,687) |
-| Short description | optional, ≤ 1,000 chars (only the first ~270 shown in some views) | 225 |
-| What's new in this version | ≤ 1,500 chars — **leave blank on the first submission** (MS guidance) | 0.2.1 update text |
-| Product features | up to 20 items, ≤ 200 chars each, no own bullets | 20 items, longest 90 |
+| Description | required, ≤ 10,000 chars, plain text, no HTML / code / URLs | 4,298 |
+| Short description | optional, ≤ 1,000 chars (only the first ~270 shown in some views) | 195 |
+| What's new in this version | ≤ 1,500 chars — leave blank on the first submission | 0.3.0 update text |
+| Product features | up to 20 items, ≤ 200 chars each, no own bullets | 20 items, longest 121 |
 | Search terms | up to 7 terms, ≤ 30 chars each; not shown to users; avoid competitor brand names and words like "free"/"best" | 7, longest 21 |
-| Screenshot captions | ≤ 200 chars each, up to 10 desktop screenshots | see `screenshots.md` |
+| Screenshot captions | ≤ 200 chars each, up to 10 desktop screenshots | see `update-0.3.0.md`, 7 screenshots |
 | Copyright and trademark info | ≤ 200 chars *(assumed)* | 1 line |
 | Additional license terms | ≤ 10,000 chars *(assumed)*; optional | MIT notice below |
 
@@ -28,11 +28,8 @@ Posemark
 ## Short description
 
 ```
-A Typora-style live-preview Markdown editor. Write plain Markdown and see it rendered in place: tables you edit as a grid, KaTeX math, Mermaid diagrams, images, footnotes and a table of contents. Your files stay on your disk.
+A live-preview Markdown editor with editable tables, math, Mermaid diagrams and WeChat formatting. Keep your files on your own disk, and turn a folder of articles into an offline reading website.
 ```
-
-> Note: mentioning "Typora-style" describes the editing model; if certification objects to the
-> third-party name, use "A live-preview (WYSIWYG-style) Markdown editor." instead.
 
 ## Description
 
@@ -42,7 +39,7 @@ Posemark is a desktop Markdown editor that renders your document while you type.
 Live preview editing
 - Headings, lists, quotes, task lists with clickable checkboxes, horizontal rules, bold, italic, strikethrough, highlight, subscript and superscript.
 - GFM tables open as an editable grid when you click into them. Tab and Shift+Tab walk the cells, Enter moves down a row, and a right-click menu inserts or deletes rows and columns and sets alignment. Every keystroke is written back to the Markdown source.
-- Fenced code blocks are syntax-highlighted, with optional line numbers and soft wrap, and stay highlighted while you edit them.
+- Fenced code blocks are syntax-highlighted, with optional line numbers, soft wrap and a copy button, and stay highlighted while you edit them.
 - Inline and block math with KaTeX, including mhchem chemistry, a subset of the physics package, equation numbering and \label / \ref cross-references. A math block opens as a field with the rendered formula updating underneath.
 - Mermaid diagrams, plus sequence and flow diagram syntaxes, render in place and follow the editor theme. Right-click a diagram to save it as SVG or PNG.
 - GitHub-style alerts, footnotes, a clickable [TOC] block, emoji shortcodes with autocomplete, reference-style links and YAML front matter.
@@ -60,7 +57,7 @@ Writing comfort
 - Word count with characters, lines, paragraphs and reading time.
 
 Workspace
-- Open a folder and work from a file tree: new file, new folder, rename, duplicate, drag-and-drop move, move to the Recycle Bin, and undo of the last file operation.
+- Open a folder and work from a file tree: new file, new folder, rename, duplicate, drag-and-drop move, move to the Recycle Bin, and undo of the last file operation. Clear file and folder icons and a collapse-all button help you navigate.
 - Quick open, recent files, pinned folders, a flat file list view and search across the whole folder.
 - An outline panel with folding and filtering.
 - Changes made to the folder by other programs show up automatically.
@@ -69,6 +66,7 @@ Workspace
 
 Output
 - Export to self-contained HTML or to PDF.
+- Turn a folder of Markdown articles into a website with a cover and searchable contents. Select and reorder chapters, adjust the appearance and preview before exporting. The reader supports chapter and continuous reading, font size and paper colours, including on phones. Local images, attachments, equations and diagrams are bundled: open index.html for offline reading or upload the complete folder to a static host. Remote resources still need a connection. The export panel and generated reader currently use Chinese.
 - Copy as HTML or as Markdown.
 - Copy for WeChat Official Accounts: the document is rebuilt with inline styles only, with formulas and diagrams turned into images, and a live preview lets you tune the look.
 
@@ -93,15 +91,15 @@ Drop or paste images into the document's assets folder, then resize them by drag
 Image menu: copy, zoom, move, delete, download remote images, batch move or copy all
 Optional image upload through PicGo-Core, PicList or a custom command
 GitHub-style alerts, footnotes, [TOC] block, emoji shortcodes and front matter
-Smart paste converts rich text from web pages and Word documents into Markdown
-Smart typography and auto-pairing of brackets and Markdown markers
-File tree with rename, duplicate, drag-and-drop move, Recycle Bin and undo
+Smart paste from web pages and Word, smart typography, and auto-pairing of brackets and Markdown markers
+File tree with clear icons, collapse all, rename, drag-and-drop move, Recycle Bin and undo
 Quick open, recent files, pinned folders and search across the whole folder
 Outline panel with folding and filtering; word count and reading time
 Source code mode with Markdown syntax highlighting
 Focus mode, typewriter mode, multiple windows and auto save
 Unsaved-draft backups you can recover after a crash
 Export to self-contained HTML or PDF; copy as HTML or Markdown
+Export articles as an offline website with a cover and searchable contents; export panel and reader currently use Chinese
 Copy for WeChat Official Accounts with inline styles and a live style preview
 Five themes, follow Windows dark mode, and your own custom CSS
 ```
@@ -120,12 +118,16 @@ markdown to pdf
 
 ## What's new in this version
 
-Left blank on the first submission (0.2.0). Text for the 0.2.1 update:
+Text for the 0.3.0 update. Left blank on the first submission (0.2.0).
 
 ```
-Posemark 0.2.1 is a bug-fix update:
-- Lists in live preview: bullets render as disc, circle and square by nesting depth, ordered lists keep their numbers, and items plus their continuation lines get a hanging indent so wrapped text lines up under the item text. The text no longer shifts when the caret line shows the raw marker.
-- Bold and italic around CJK punctuation: wrapping a selection such as 「她」 in bold, italic, strikethrough or highlight now moves the markers inside the punctuation so the formatting renders correctly.
+Posemark 0.3.0 introduces website export.
+
+Turn a folder of Markdown articles into a website with a cover and searchable contents. Select and reorder chapters, adjust the book title and appearance, and preview before exporting. Local images, attachments, equations and Mermaid diagrams are bundled. Open index.html for offline reading, or upload the complete output folder to a static host. Remote resources still require a connection.
+
+The reader supports chapter and continuous reading, font size and paper colours, with layouts for phones and shorter windows. The export panel and generated reader currently use Chinese.
+
+File-tree and outline icons, disclosure arrows and spacing are clearer, and a new button collapses all folders. Code-block and diagram controls have been refreshed, and the displayed app version has been corrected.
 ```
 
 ## Copyright and trademark info
@@ -139,9 +141,6 @@ Copyright (c) 2026 yunnysunny. Released under the MIT License.
 ```
 Posemark is open-source software licensed under the MIT License. The full license text and source code are available from the project's GitHub repository.
 ```
-
-> Note: the repository currently has no `LICENSE` file even though `package.json` says MIT — add one
-> before submission so the claim can be verified.
 
 ## Properties page (Partner Center › Properties)
 
