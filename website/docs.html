@@ -240,7 +240,7 @@ flowchart LR
     <!-- ============================================================ website -->
     <h2 id="website-export"><span lang="zh-CN">导出为网站</span><span lang="en">Export a website</span></h2>
     <div lang="zh-CN">
-      <p>本节介绍当前源码中的新增功能。若已安装版本还没有“网站…”菜单，需要等待包含此功能的版本发布，或从当前源码构建。网站导出页和生成的阅读器目前使用中文界面，菜单入口随应用语言切换。</p>
+      <p>网站导出从 Posemark 0.3.0 开始提供。若已安装版本还没有“网站…”菜单，请升级到 0.3.0 或更新版本。网站导出页和生成的阅读器目前使用中文界面，菜单入口随应用语言切换。</p>
       <p>先保存要收录的文章，再打开 <b>文件 › 导出 › 网站…</b>。导出页默认读取当前打开的文件夹，也可以点击“选择目录”重新选择。它读取的是磁盘上已保存的 Markdown，不包含编辑器中尚未保存的修改；更新原文后，点击“重新读取目录”刷新。</p>
       <h3>整理内容与装帧</h3>
       <p>“内容”页列出目录与子目录中的文章。勾选需要的章节，悬停或聚焦章节行后用上下按钮调整顺序，点击标题预览正文。文件夹路径作为分卷信息保留；章节名称依次采用 front matter 的 <code>title</code>、正文第一个一级标题，或文件名。</p>
@@ -253,7 +253,7 @@ flowchart LR
       <p>扫描跳过以点号开头的文件与目录、符号链接，以及 <code>node_modules</code> 等排除目录；最多处理 2000 篇文章，单篇上限为 20 MB。原始 HTML 中的脚本、嵌入页面、事件处理和外部样式不会保留，因此依赖这些内容的自定义交互需要重新评估。</p>
     </div>
     <div lang="en">
-      <p>This section covers a new feature in the current source. If your installed version has no Website… menu, wait for a release containing it or build from source. The export panel and generated reader currently use Chinese; the menu entry follows the app language.</p>
+      <p>Website export is available starting with Posemark 0.3.0. If your installed version has no Website… menu, upgrade to 0.3.0 or later. The export panel and generated reader currently use Chinese; the menu entry follows the app language.</p>
       <p>Save the articles first, then open <b>File › Export › Website…</b>. The panel starts with your current folder; 选择目录 (Choose folder) selects another. It reads saved Markdown from disk, not unsaved editor changes. Use 重新读取目录 (Reload folder) after changing the source files.</p>
       <h3>Arrange chapters and appearance</h3>
       <p>内容 (Content) lists articles in the folder and its subfolders. Select the chapters to include, hover or focus a chapter row to move it up or down, and click its title to preview it. Folder paths supply group labels. Chapter titles use the front matter <code>title</code>, then the first level-one heading, then the filename.</p>
