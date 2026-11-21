@@ -42,24 +42,24 @@ const hitKey = (hit) => `${hit.line}:${hit.col}`;
 // (verified against Node's native behaviour):
 // $$ -> $, $& -> whole match, $` / $' -> text before/after the match,
 // $n (1-99) -> capture group n when it exists (an existing but unmatched
-// group expands to ''), $<name> -> the named group when it exists.
-// Anything that is not a real group reference stays literal: $0, $n with n
-// larger than the group count, and $<name> with no such named group.
+// group expands to ''). When named captures exist, $<name> expands to the
+// group's value or '' for an unknown or unmatched name. Otherwise it stays literal.
+// $0 and numeric references outside the capture range also stay literal.
 // Two-digit tokens fall back like the native implementation: $10 with a
 // single group means $1 followed by a literal '0' (and $11 means $1 + '1'),
 // while $99 with one group stays literal because 9 is not a group either.
 function expandReplacement(replacement, match) {
   const groupCount = match.length - 1;
-  const groups = match.groups || {};
-  return String(replacement).replace(/\$(\$|&|`|'|<[^>]*>|\d{1,2}|.)/g, (all, token) => {
+  const tokens = match.groups
+    ? /\$(\$|&|`|'|<[^>]*>|\d{1,2})/g
+    : /\$(\$|&|`|'|\d{1,2})/g;
+  return String(replacement).replace(tokens, (all, token) => {
     if (token === '$') return '$';
     if (token === '&') return match[0];
     if (token === '`') return match.input.slice(0, match.index);
     if (token === "'") return match.input.slice(match.index + match[0].length);
     if (token.startsWith('<')) {
-      const name = token.slice(1, -1);
-      if (!Object.prototype.hasOwnProperty.call(groups, name)) return all;
-      return groups[name] === undefined ? '' : groups[name];
+      return match.groups[token.slice(1, -1)] ?? '';
     }
     if (/^\d+$/.test(token)) {
       const n = Number(token);
@@ -85,25 +85,34 @@ function expandReplacement(replacement, match) {
 function createLineTracker(text) {
   let line = 1;
   let lineStart = 0;
-  let scanned = 0;
+  const nextLineEnd = (start) => {
+    const newline = text.indexOf('\n', start);
+    return newline === -1 ? text.length : newline;
+  };
+  let lineEnd = nextLineEnd(lineStart);
   return (index) => {
-    while (scanned < index) {
-      if (text[scanned] === '\n') {
-        line++;
-        lineStart = scanned + 1;
-      }
-      scanned++;
+    while (index > lineEnd) {
+      line++;
+      lineStart = lineEnd + 1;
+      lineEnd = nextLineEnd(lineStart);
     }
-    return { line, col: index - lineStart };
+    const end = text[lineEnd - 1] === '\r' ? lineEnd - 1 : lineEnd;
+    return { line, col: index - lineStart, start: lineStart, end };
   };
 }
 
-function lineBoundsOf(text, index) {
-  let start = index;
-  while (start > 0 && text[start - 1] !== '\n') start--;
-  let end = index;
-  while (end < text.length && text[end] !== '\n') end++;
-  return { start, end };
+function matchContext(text, match, position) {
+  const { line, col, start, end } = position(match.index);
+  const from = Math.max(start, match.index - 40);
+  const afterStart = match.index + match[0].length;
+  return {
+    line,
+    col,
+    len: match[0].length,
+    match: match[0],
+    before: (from > start ? '…' : '') + text.slice(from, Math.min(match.index, end)),
+    after: text.slice(afterStart, Math.min(afterStart + 80, end)),
+  };
 }
 
 // Every non-empty match in `text`, in order. Each hit carries the same
@@ -118,22 +127,10 @@ function findMatches(text, opts) {
   let m;
   while ((m = re.exec(text)) !== null) {
     if (m[0] === '') {
-      re.lastIndex++;
+      re.lastIndex += text.codePointAt(m.index) > 0xffff ? 2 : 1;
       continue;
     }
-    const { line, col } = position(m.index);
-    const { start, end } = lineBoundsOf(text, m.index);
-    const lineText = text.slice(start, end).replace(/\r$/, '');
-    const from = Math.max(0, m.index - start - 40);
-    const relIndex = m.index - start;
-    hits.push({
-      line,
-      col,
-      len: m[0].length,
-      match: m[0],
-      before: (from > 0 ? '…' : '') + lineText.slice(from, relIndex),
-      after: lineText.slice(relIndex + m[0].length, relIndex + m[0].length + 80),
-    });
+    hits.push(matchContext(text, m, position));
     if (hits.length >= limit) break;
   }
   return hits;
@@ -150,26 +147,15 @@ function previewReplace(text, { replacement = '', limit = Infinity, ...opts }) {
   let m;
   while ((m = re.exec(text)) !== null) {
     if (m[0] === '') {
-      re.lastIndex++;
+      re.lastIndex += text.codePointAt(m.index) > 0xffff ? 2 : 1;
       continue;
     }
-    const { line, col } = position(m.index);
-    const { start, end } = lineBoundsOf(text, m.index);
-    const lineText = text.slice(start, end).replace(/\r$/, '');
-    const relIndex = m.index - start;
-    const from = Math.max(0, relIndex - 40);
-    const before = (from > 0 ? '…' : '') + lineText.slice(from, relIndex);
-    const after = lineText.slice(relIndex + m[0].length, relIndex + m[0].length + 80);
+    const hit = matchContext(text, m, position);
     const replaced = expandReplacement(replacement, m);
     hits.push({
-      line,
-      col,
-      len: m[0].length,
-      match: m[0],
-      before,
-      after,
+      ...hit,
       replacement: replaced,
-      replaced: before + replaced + after,
+      replaced: hit.before + replaced + hit.after,
     });
     if (hits.length >= limit) break;
   }
@@ -189,33 +175,25 @@ function applyReplaceText(text, { replacement = '', ...opts }, selected) {
   const re = buildSearchRegExp(opts);
   const wanted = selected === undefined || selected === null ? null
     : (selected instanceof Map ? selected : new Set(selected));
-  const position = createLineTracker(text);
+  if (wanted?.size === 0) return { text, count: 0 };
+  const position = wanted ? createLineTracker(text) : null;
   const spans = [];
   let resolved = 0;
   let m;
   while ((m = re.exec(text)) !== null) {
     if (m[0] === '') {
-      re.lastIndex++;
+      re.lastIndex += text.codePointAt(m.index) > 0xffff ? 2 : 1;
       continue;
     }
-    const { line, col } = position(m.index);
     if (wanted) {
-      const key = hitKey({ line, col });
+      const key = hitKey(position(m.index));
       if (!wanted.has(key)) continue;
       resolved++;
-      if (wanted instanceof Map) {
-        // Stale preview: the text at this coordinate changed after
-        // previewing, so this is not the hit the user approved.
-        const expected = wanted.get(key);
-        if (expected !== undefined && m[0] !== expected) {
-          if (resolved >= wanted.size) break;
-          continue;
-        }
+      const expected = wanted instanceof Map ? wanted.get(key) : undefined;
+      if (expected === undefined || m[0] === expected) {
+        spans.push({ index: m.index, len: m[0].length, replacement: expandReplacement(replacement, m) });
       }
-      spans.push({ index: m.index, len: m[0].length, replacement: expandReplacement(replacement, m) });
-      // Once every selected hit has been accounted for (replaced or
-      // rejected as stale) there is nothing left to do in this file.
-      if (resolved >= wanted.size) break;
+      if (resolved === wanted.size) break;
     } else {
       spans.push({ index: m.index, len: m[0].length, replacement: expandReplacement(replacement, m) });
     }

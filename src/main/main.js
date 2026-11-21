@@ -782,7 +782,7 @@ async function searchFolder({ dir, query, caseSensitive = false, wholeWord = fal
       let m;
       while ((m = re.exec(line))) {
         if (m[0] === '') {
-          re.lastIndex++;
+          re.lastIndex += line.codePointAt(m.index) > 0xffff ? 2 : 1;
           continue;
         }
         const from = Math.max(0, m.index - 40);
@@ -843,22 +843,19 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
       continue;
     }
     out.scanned++;
-    // Pass the remaining result budget in so preview generation stops as
-    // soon as the cap is reached instead of materializing every hit in a
-    // file with tens of thousands of matches first.
-    const fileHits = searchReplace.previewReplace(text, { query, replacement, caseSensitive, wholeWord, regex, limit: Math.max(0, maxResults - out.results.length) });
+    // Check one extra hit so a preview capped within this file is marked truncated.
+    const fileHits = searchReplace.previewReplace(text, { query, replacement, caseSensitive, wholeWord, regex, limit: maxResults - out.results.length + 1 });
     if (!fileHits.length) continue;
     out.files++;
     // Fingerprint of the text this preview was computed from, so the apply
     // step can refuse a file that changed after previewing (see
     // replaceInFolder). Only files with hits need one.
     out.fingerprints[file] = searchReplace.contentFingerprint(text);
-    for (const h of fileHits) {
-      if (out.results.length >= maxResults) {
-        out.truncated = true;
-        break;
-      }
-      out.results.push({ path: file, ...h });
+    const remaining = maxResults - out.results.length;
+    for (const h of fileHits.slice(0, remaining)) out.results.push({ path: file, ...h });
+    if (fileHits.length > remaining) {
+      out.truncated = true;
+      break;
     }
   }
   return out;
@@ -940,28 +937,13 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
       out.skipped.push({ path: file, reason: 'read-only' });
       continue;
     }
-    const hits = searchReplace.findMatches(text, { query, caseSensitive, wholeWord, regex });
-    if (wanted) {
-      // A hit only counts when its freshly scanned text still equals the
-      // text previewed at that coordinate. If the file changed after
-      // previewing (edited externally, or saved through the Save and Replace
-      // prompt), the stale hit is counted as not found and skipped — the
-      // replacement must never land on a different occurrence.
-      const found = hits.filter((h) => {
-        const expected = wanted.get(searchReplace.hitKey(h));
-        return expected === undefined || expected === h.match;
-      });
-      out.selectedNotFound += wanted.size - found.length;
-      if (!found.length) continue;
-    } else if (!hits.length) {
-      continue;
-    }
     const { text: next, count } = searchReplace.applyReplaceText(text, { query, replacement, caseSensitive, wholeWord, regex }, wanted);
+    if (wanted) out.selectedNotFound += wanted.size - count;
     if (!count) continue;
     const backup = backupPathFor(dir, stamp, file);
     try {
       await fsp.mkdir(path.dirname(backup), { recursive: true });
-      await fsp.writeFile(backup, text, 'utf8');
+      await fsp.writeFile(backup, text, { encoding: 'utf8', flag: 'wx', mode: st.mode & 0o777 });
       await fsp.chmod(backup, st.mode & 0o7777);
     } catch (err) {
       out.skipped.push({ path: file, reason: `backup failed: ${err.message}` });
@@ -972,7 +954,7 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     // on failure is always one this run created itself.
     const tmp = `${target}.${process.pid}-${crypto.randomBytes(6).toString('hex')}.tmp`;
     try {
-      await fsp.writeFile(tmp, next, { encoding: 'utf8', flag: 'wx' });
+      await fsp.writeFile(tmp, next, { encoding: 'utf8', flag: 'wx', mode: st.mode & 0o777 });
       await fsp.chmod(tmp, st.mode & 0o7777);
       await fsp.rename(tmp, target);
     } catch (err) {

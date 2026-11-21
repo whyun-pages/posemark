@@ -1518,7 +1518,11 @@ function openSearchPanel(prefill) {
   input.select();
 }
 
+let searchRequestId = 0;
+
 async function runSearch() {
+  const requestId = ++searchRequestId;
+  const dir = S.folder;
   const input = $('#search-input');
   const query = input.value;
   S.search.query = query;
@@ -1540,13 +1544,13 @@ async function runSearch() {
   }
   $('#search-summary').textContent = 'Searching…';
   const res = await window.ink.searchFolder({
-    dir: S.folder,
+    dir,
     query,
     caseSensitive: S.search.caseSensitive,
     wholeWord: S.search.wholeWord,
     regex: S.search.regex,
   });
-  if (query !== $('#search-input').value) return; // a newer search is on its way
+  if (requestId !== searchRequestId || dir !== S.folder || query !== input.value) return;
   S.search.results = res;
   renderSearchResults(res);
 }
@@ -1640,9 +1644,11 @@ async function runReplacePreview() {
     flashMessage('Type something to search for first');
     return;
   }
+  const requestId = ++searchRequestId;
+  const dir = S.folder;
   $('#search-summary').textContent = 'Previewing…';
   const res = await window.ink.replacePreviewFolder({
-    dir: S.folder,
+    dir,
     query,
     replacement,
     caseSensitive,
@@ -1651,7 +1657,8 @@ async function runReplacePreview() {
   });
   // The query, replacement or matching options changed while previewing:
   // this result no longer describes what is on screen, so drop it.
-  if (query !== $('#search-input').value || replacement !== $('#search-replace-input').value
+  if (requestId !== searchRequestId || dir !== S.folder
+    || query !== $('#search-input').value || replacement !== $('#search-replace-input').value
     || caseSensitive !== S.search.caseSensitive || wholeWord !== S.search.wholeWord || regex !== S.search.regex) return;
   if (res.error) {
     S.search.replacePreview = null;
@@ -1663,6 +1670,7 @@ async function runReplacePreview() {
   // Snapshot the query, matching options and replacement with the preview:
   // executing later must use exactly what the preview showed, not whatever
   // the fields hold by then.
+  res.dir = dir;
   res.query = query;
   res.caseSensitive = caseSensitive;
   res.wholeWord = wholeWord;
@@ -1701,6 +1709,7 @@ function renderReplacePreview(res) {
     check.checked = true;
     check.addEventListener('change', () => {
       const key = replaceHitKey(hit);
+      if (S.search.replacePreview !== res) return;
       if (check.checked) S.search.replaceSelection.add(key);
       else S.search.replaceSelection.delete(key);
     });
@@ -1731,7 +1740,8 @@ function renderReplacePreview(res) {
 
 async function runReplace(mode) {
   const preview = S.search.replacePreview;
-  if (!preview || !preview.results.length || S.search.replaceRunning) return;
+  if (!preview || !preview.results.length || S.search.replaceRunning
+    || preview.dir !== S.folder || preview.query !== $('#search-input').value) return;
   // In-flight guard, set before the first await: while a replace is running
   // its buttons are disabled, so a second click cannot launch a duplicate
   // write over the same selection (and expand a hit twice).
@@ -1775,7 +1785,7 @@ async function runReplace(mode) {
     if (!(await save())) return;
   }
   const out = await window.ink.replaceInFolder({
-    dir: S.folder,
+    dir: preview.dir,
     query,
     replacement,
     caseSensitive,
@@ -1863,7 +1873,9 @@ function wireSearch() {
       S.view.focus();
     }
   });
-  const debouncedSearch = debounce(() => runSearch(), 350);
+  const debouncedSearch = debounce((requestId) => {
+    if (requestId === searchRequestId) runSearch();
+  }, 350);
   input.addEventListener('input', () => {
     // Invalidate a replace preview synchronously: the debounced search below
     // runs 350 ms later, and until then the old preview's coordinates must
@@ -1874,7 +1886,7 @@ function wireSearch() {
       S.search.replaceSelection = null;
       setReplaceMode(false);
     }
-    debouncedSearch();
+    debouncedSearch(++searchRequestId);
   });
   $('#search-replace-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {

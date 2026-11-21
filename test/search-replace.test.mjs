@@ -190,3 +190,37 @@ test('content fingerprint catches any change, including an inserted identical li
   // fingerprint is what catches it.
   assert.notEqual(contentFingerprint('foo\nfoo\nfoo\n'), fp);
 });
+
+test('unknown names expand like native replacement when named captures exist', () => {
+  for (const pattern of [/(?<x>a)/, /(a)/]) {
+    const replacement = '[$<missing>][$<x>]';
+    assert.equal(expandReplacement(replacement, pattern.exec('a')), 'a'.replace(pattern, replacement));
+  }
+});
+
+test('long lines reuse their boundaries and keep context inside the line', () => {
+  const text = 'foo '.repeat(100000) + '\r\nfoo';
+  const start = performance.now();
+  const opts = { query: 'foo', limit: 2000 };
+  const hits = findMatches(text, opts);
+  const preview = previewReplace(text, { ...opts, replacement: 'bar' });
+  assert.equal(hits.length, 2000);
+  assert.equal(preview.length, 2000);
+  assert.equal(hits[1999].col, 7996);
+  assert.equal(preview[1999].before, '…' + 'foo '.repeat(10));
+  assert.equal(preview[1999].after.length, 80);
+  assert.ok(performance.now() - start < 1500, 'long-line scanning exceeded 1.5 seconds');
+
+  const boundaryHits = findMatches('foo\r\nfoo', { query: 'foo' });
+  assert.equal(boundaryHits[0].after, '');
+  assert.equal(boundaryHits[1].line, 2);
+  assert.equal(boundaryHits[1].col, 0);
+});
+
+test('skipping empty regex matches advances past a whole Unicode character', () => {
+  const text = '😊foo';
+  const opts = { query: 'foo|(?=😊)', regex: true };
+  assert.equal(findMatches(text, opts)[0].col, 2);
+  assert.equal(previewReplace(text, opts)[0].col, 2);
+  assert.equal(applyReplaceText(text, { ...opts, replacement: 'bar' }).text, '😊bar');
+});
