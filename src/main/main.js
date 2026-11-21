@@ -822,7 +822,7 @@ function backupPathFor(dir, stamp, file) {
 // replacement text for that hit and the context line as it would look after
 // replacing just that hit.
 async function previewReplaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
-  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, encodingSkipped: 0, fingerprints: {} };
+  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, encodingSkipped: 0, fingerprints: {}, targets: {} };
   if (!dir || !query) return out;
   try {
     searchReplace.buildSearchRegExp({ query, caseSensitive, wholeWord, regex });
@@ -836,12 +836,14 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
       out.truncated = true;
       break;
     }
+    let target;
     let original;
     let text;
     try {
-      const st = await fsp.stat(file);
-      if (st.size > 8 * 1024 * 1024) continue;
-      original = await fsp.readFile(file);
+      target = await fsp.realpath(file);
+      const st = await fsp.stat(target);
+      if (!st.isFile() || st.size > 8 * 1024 * 1024) continue;
+      original = await fsp.readFile(target);
       text = decodeText(original).text;
     } catch (err) {
       if (err.code === 'UNSUPPORTED_TEXT_ENCODING') out.encodingSkipped++;
@@ -856,6 +858,7 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
     // step can refuse a file that changed after previewing (see
     // replaceInFolder). Only files with hits need one.
     out.fingerprints[file] = searchReplace.contentFingerprint(original);
+    out.targets[file] = target;
     const remaining = maxResults - out.results.length;
     for (const h of fileHits.slice(0, remaining)) out.results.push({ path: file, ...h });
     if (fileHits.length > remaining) {
@@ -935,7 +938,7 @@ async function replaceIfUnchanged(file, target, original, tmp, initialStat) {
 // keep the original file's mode, so a private 0600 note does not silently
 // become 0644. A symbolic link is written through to its target, like a
 // normal save does, instead of replacing the link itself.
-async function replaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, selected = null, fingerprints = null }) {
+async function replaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, selected = null, fingerprints = null, targets = null }) {
   const out = { changed: [], skipped: [], files: 0, replacements: 0, backupDir: null, error: null, selectedNotFound: 0, staleFiles: [] };
   if (!dir || !query) return out;
   try {
@@ -957,16 +960,18 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
   const files = await walkMarkdown(dir, 20000);
   const stamp = `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${crypto.randomBytes(3).toString('hex')}`;
   for (const file of files) {
-    if (selected && !wantedByFile.has(file)) continue;
+    const wanted = wantedByFile.get(file);
+    if (selected && !wanted) continue;
     // Resolve a symbolic link to its target first: stat/read/write must all
     // act on the target, and the final rename must land on the target too,
     // or the link itself would be replaced by a regular file.
-    let target = file;
-    try {
-      target = await fsp.realpath(file);
-    } catch {
+    const target = await fsp.realpath(file).catch(() => null);
+    if (targets?.[file] && target !== targets[file]) {
+      out.staleFiles.push(file);
+      out.selectedNotFound += wanted?.size ?? 0;
       continue;
     }
+    if (!target) continue;
     let original;
     let st;
     try {
@@ -989,7 +994,6 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     // identical line inserted before a hit, which shifts every later hit
     // down a line. If the file changed at all since previewing, skip the
     // whole file and tell the user to re-preview it.
-    const wanted = wantedByFile.get(file) || null;
     if (wanted && fingerprints && fingerprints[file] && searchReplace.contentFingerprint(original) !== fingerprints[file]) {
       out.staleFiles.push(file);
       out.selectedNotFound += wanted.size;
@@ -1039,7 +1043,7 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     }
     out.files++;
     out.replacements += count;
-    out.changed.push({ path: file, replacements: count, backup });
+    out.changed.push({ path: file, target, replacements: count, backup });
     if (!out.backupDir) out.backupDir = path.join(dir, '.posemark-backup', stamp);
   }
   return out;
@@ -1401,6 +1405,7 @@ function registerIpc() {
 
   ipcMain.handle('file:read', (_e, p) => readTextFile(p));
   ipcMain.handle('file:write', (_e, p, content) => saveNote(p, content));
+  ipcMain.handle('file:realpath', (_e, p) => fsp.realpath(p).catch(() => null));
   ipcMain.handle('file:exists', (_e, p) => fs.existsSync(p));
   ipcMain.handle('file:dir', (_e, dir) => dirEntries(dir));
   ipcMain.handle('file:walk', (_e, dir) => walkMarkdown(dir));

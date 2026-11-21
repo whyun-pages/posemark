@@ -17,6 +17,7 @@ contextBridge.exposeInMainWorld('ink', {
   pickFolder: (dir) => ipcRenderer.invoke('dialog:pickFolder', dir),
   saveFileAs: (payload) => ipcRenderer.invoke('dialog:saveFileAs', payload),
   readFile: (p) => ipcRenderer.invoke('file:read', p),
+  resolveFilePath: (p) => ipcRenderer.invoke('file:realpath', p),
   writeFile: (p, content) => ipcRenderer.invoke('file:write', p, content),
   exists: (p) => ipcRenderer.invoke('file:exists', p),
   readDir: (dir) => ipcRenderer.invoke('file:dir', dir),

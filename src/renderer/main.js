@@ -386,7 +386,7 @@ async function checkExternalChange(opts = {}) {
     flashMessage(`${basename(S.path)} was moved or deleted`);
     return;
   }
-  if (!S.mtime || Math.abs(st.mtime - S.mtime) < 1) return;
+  if (!opts.force && (!S.mtime || Math.abs(st.mtime - S.mtime) < 1)) return;
   if (S.config.reloadOnExternalChange === false && !opts.force) {
     S.mtime = st.mtime;
     flashMessage(`${basename(S.path)} changed on disk — your unsaved edits are kept`);
@@ -1802,10 +1802,11 @@ async function runReplace(mode) {
   const caseSensitive = preview.caseSensitive ?? S.search.caseSensitive;
   const wholeWord = preview.wholeWord ?? S.search.wholeWord;
   const regex = preview.regex ?? S.search.regex;
-  const affected = new Set(selected.map((h) => h.path));
-  // The open document may be among the files about to change: never silently
-  // overwrite unsaved edits in it.
-  if (S.path && S.dirty && [...affected].some((p) => samePath(p, S.path))) {
+  const openPath = S.path;
+  const openTarget = openPath ? await window.ink.resolveFilePath(openPath) : null;
+  if (S.path !== openPath || S.search.replacePreview !== preview) return;
+  // Match the targets read by the preview, including notes opened via an alias.
+  if (openTarget && S.dirty && selected.some((hit) => preview.targets[hit.path] === openTarget)) {
     const res = await window.ink.confirm({
       type: 'warning',
       message: `“${basename(S.path)}” has unsaved edits and would be changed`,
@@ -1814,8 +1815,8 @@ async function runReplace(mode) {
       defaultId: 0,
       cancelId: 1,
     });
-    if (res !== 0) return;
-    if (!(await save())) return;
+    if (res !== 0 || S.path !== openPath || S.search.replacePreview !== preview) return;
+    if (!(await save()) || S.path !== openPath || S.search.replacePreview !== preview) return;
   }
   const out = await window.ink.replaceInFolder({
     dir: preview.dir,
@@ -1827,7 +1828,8 @@ async function runReplace(mode) {
     selected,
     // Fingerprints of the files as previewed: the main process refuses a
     // file whose content changed after previewing (see staleFiles below).
-    fingerprints: preview.fingerprints || null,
+    fingerprints: preview.fingerprints,
+    targets: preview.targets,
   });
   if (out.error) {
     flashMessage(`Replace failed: ${out.error}`);
@@ -1870,7 +1872,13 @@ async function runReplace(mode) {
   // this change was made by us, so it reloads even if the user turned off
   // reloading for external changes — otherwise the stale buffer would
   // overwrite the replacement on the next save.
-  if (S.path && [...affected].some((p) => samePath(p, S.path))) await checkExternalChange({ force: true });
+  if (S.path && out.changed.length) {
+    const currentPath = S.path;
+    const currentTarget = await window.ink.resolveFilePath(currentPath);
+    if (S.path === currentPath && out.changed.some(({ target }) => target === currentTarget)) {
+      await checkExternalChange({ force: true });
+    }
+  }
   } finally {
     S.search.replaceRunning = false;
     setReplaceButtonsDisabled(false);
