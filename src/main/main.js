@@ -861,6 +861,50 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
   return out;
 }
 
+// Serialize note writes and replacement commits to the same resolved path.
+const noteWrites = new Map();
+
+async function withNoteWriteLock(target, write) {
+  const key = process.platform === 'win32' ? target.toLowerCase() : target;
+  const previous = noteWrites.get(key);
+  const pending = Promise.resolve(previous).catch(() => {}).then(write);
+  noteWrites.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (noteWrites.get(key) === pending) noteWrites.delete(key);
+  }
+}
+
+async function saveNote(file, content) {
+  const key = await fsp.realpath(file).catch((err) => {
+    if (err.code !== 'ENOENT') throw err;
+    return path.resolve(file);
+  });
+  return withNoteWriteLock(key, async () => {
+    await fsp.writeFile(file, content, 'utf8');
+    return (await fsp.stat(file)).mtimeMs;
+  });
+}
+
+async function replaceIfUnchanged(file, target, original, tmp, initialStat) {
+  return withNoteWriteLock(target, async () => {
+    try {
+      if (await fsp.realpath(file) !== target) return false;
+      const currentStat = await fsp.stat(target);
+      if (!currentStat.isFile() || currentStat.dev !== initialStat.dev
+        || currentStat.ino !== initialStat.ino || currentStat.mode !== initialStat.mode
+        || currentStat.size !== original.length) return false;
+      if (!(await fsp.readFile(target)).equals(original)) return false;
+    } catch (err) {
+      if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return false;
+      throw err;
+    }
+    await fsp.rename(tmp, target);
+    return true;
+  });
+}
+
 // Execute a replace. `selected` is an array of { path, line, col, match } from
 // the preview list, or null for "replace all" (every match in the folder).
 // Files are re-read here, so a stale preview can under-apply (counted in
@@ -909,19 +953,20 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     // or the link itself would be replaced by a regular file.
     let target = file;
     try {
-      if ((await fsp.lstat(file)).isSymbolicLink()) target = await fsp.realpath(file);
+      target = await fsp.realpath(file);
     } catch {
       continue;
     }
-    let text;
+    let original;
     let st;
     try {
       st = await fsp.stat(target);
       if (!st.isFile() || st.size > 8 * 1024 * 1024) continue;
-      text = await fsp.readFile(target, 'utf8');
+      original = await fsp.readFile(target);
     } catch {
       continue;
     }
+    const text = original.toString('utf8');
     // Whole-file fingerprint check, before anything is written: matching by
     // line:col (and even by the text at that coordinate) cannot see an
     // identical line inserted before a hit, which shifts every later hit
@@ -943,7 +988,7 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     const backup = backupPathFor(dir, stamp, file);
     try {
       await fsp.mkdir(path.dirname(backup), { recursive: true });
-      await fsp.writeFile(backup, text, { encoding: 'utf8', flag: 'wx', mode: st.mode & 0o777 });
+      await fsp.writeFile(backup, original, { flag: 'wx', mode: st.mode & 0o777 });
       await fsp.chmod(backup, st.mode & 0o7777);
     } catch (err) {
       out.skipped.push({ path: file, reason: `backup failed: ${err.message}` });
@@ -956,7 +1001,13 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     try {
       await fsp.writeFile(tmp, next, { encoding: 'utf8', flag: 'wx', mode: st.mode & 0o777 });
       await fsp.chmod(tmp, st.mode & 0o7777);
-      await fsp.rename(tmp, target);
+      if (!(await replaceIfUnchanged(file, target, original, tmp, st))) {
+        await fsp.unlink(tmp).catch(() => {});
+        await fsp.unlink(backup).catch(() => {});
+        out.staleFiles.push(file);
+        if (wanted) out.selectedNotFound += count;
+        continue;
+      }
     } catch (err) {
       await fsp.unlink(tmp).catch(() => {});
       out.skipped.push({ path: file, reason: err.message });
@@ -1319,17 +1370,13 @@ function registerIpc() {
       filters: mdFilters,
     });
     if (res.canceled || !res.filePath) return null;
-    await fsp.writeFile(res.filePath, payload.content ?? '', 'utf8');
+    await saveNote(res.filePath, payload.content ?? '');
     addRecent('file', res.filePath);
     return res.filePath;
   });
 
   ipcMain.handle('file:read', (_e, p) => readTextFile(p));
-  ipcMain.handle('file:write', async (_e, p, content) => {
-    await fsp.writeFile(p, content, 'utf8');
-    const st = await fsp.stat(p);
-    return st.mtimeMs;
-  });
+  ipcMain.handle('file:write', (_e, p, content) => saveNote(p, content));
   ipcMain.handle('file:exists', (_e, p) => fs.existsSync(p));
   ipcMain.handle('file:dir', (_e, dir) => dirEntries(dir));
   ipcMain.handle('file:walk', (_e, dir) => walkMarkdown(dir));
