@@ -13,6 +13,8 @@ const { Drafts, draftId } = require('./drafts');
 const { UserThemes } = require('./user-themes');
 const images = require('./images');
 const { setPdfInfo } = require('./pdf-info');
+const searchReplace = require('./search-replace');
+const { decodeText, encodeText } = require('./text-encoding');
 const i18n = require('./i18n');
 
 const MD_EXT = ['md', 'markdown', 'mmd', 'mdown', 'mkd', 'mdwn', 'mdtxt', 'mdtext', 'txt', 'text', 'rmd'];
@@ -561,9 +563,9 @@ const mdFilters = [
 ];
 
 async function readTextFile(p) {
-  const content = await fsp.readFile(p, 'utf8');
+  const { text: content, encoding, bom } = decodeText(await fsp.readFile(p));
   const st = await fsp.stat(p);
-  return { path: p, content, mtime: st.mtimeMs };
+  return { path: p, content, encoding, hasBom: !!bom, mtime: st.mtimeMs };
 }
 
 const isMarkdownName = (name) => MD_EXT.includes(path.extname(name).slice(1).toLowerCase());
@@ -743,16 +745,13 @@ function startWatch(entry, dir) {
 // ---------------------------------------------------------------------------
 // search across the folder (Ctrl+Shift+F)
 // ---------------------------------------------------------------------------
-const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 async function searchFolder({ dir, query, caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
-  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null };
+  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, encodingSkipped: 0 };
   if (!dir || !query) return out;
-  let source = regex ? query : escapeRegExp(query);
-  if (wholeWord) source = `(?<![\\p{L}\\p{N}_])(?:${source})(?![\\p{L}\\p{N}_])`;
+  const options = { query, caseSensitive, wholeWord, regex };
   let re;
   try {
-    re = new RegExp(source, `gu${caseSensitive ? '' : 'i'}`);
+    re = searchReplace.buildSearchRegExp(options);
   } catch (err) {
     out.error = err.message;
     return out;
@@ -767,36 +766,266 @@ async function searchFolder({ dir, query, caseSensitive = false, wholeWord = fal
     try {
       const st = await fsp.stat(file);
       if (st.size > 8 * 1024 * 1024) continue;
-      text = await fsp.readFile(file, 'utf8');
-    } catch {
+      text = decodeText(await fsp.readFile(file)).text;
+    } catch (err) {
+      if (err.code === 'UNSUPPORTED_TEXT_ENCODING') out.encodingSkipped++;
       continue;
     }
     out.scanned++;
-    if (!re.test(text)) continue;
+    const remaining = maxResults - out.results.length;
+    const hits = searchReplace.findMatches(text, { ...options, limit: remaining + 1 }, re);
+    if (!hits.length) continue;
     out.files++;
-    const lines = text.split(/\r?\n/);
-    for (let i = 0; i < lines.length && out.results.length < maxResults; i++) {
-      const line = lines[i];
-      re.lastIndex = 0;
-      let m;
-      while ((m = re.exec(line))) {
-        if (m[0] === '') {
-          re.lastIndex++;
-          continue;
-        }
-        const from = Math.max(0, m.index - 40);
-        out.results.push({
-          path: file,
-          line: i + 1,
-          col: m.index,
-          len: m[0].length,
-          before: (from > 0 ? '…' : '') + line.slice(from, m.index),
-          match: m[0],
-          after: line.slice(m.index + m[0].length, m.index + m[0].length + 80),
-        });
-        if (out.results.length >= maxResults) break;
-      }
+    for (const hit of hits.slice(0, remaining)) out.results.push({ path: file, ...hit });
+    if (hits.length > remaining) {
+      out.truncated = true;
+      break;
     }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// replace across the folder (Search panel › Preview replace)
+// ---------------------------------------------------------------------------
+// Backups: before a file is changed for the first time in one replace run, its
+// original content is copied to `<dir>/.posemark-backup/<stamp>/<relpath>.bak`.
+// The directory is hidden (the tree and the folder search skip dot-directories
+// by default) and the `.bak` suffix is not a Markdown extension, so backups are
+// never searched or listed as notes. Restoring one is copying it back over the
+// original and deleting the `.bak` suffix. One backup per file per run.
+function backupPathFor(dir, stamp, file) {
+  const rel = path.relative(dir, file);
+  return path.join(dir, '.posemark-backup', stamp, `${rel}.bak`);
+}
+
+// Same file walk and size cap as searchFolder; each hit also carries the
+// replacement text for that hit and the context line as it would look after
+// replacing just that hit.
+async function previewReplaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
+  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, encodingSkipped: 0, fingerprints: {}, targets: {} };
+  if (!dir || !query) return out;
+  try {
+    searchReplace.buildSearchRegExp({ query, caseSensitive, wholeWord, regex });
+  } catch (err) {
+    out.error = err.message;
+    return out;
+  }
+  const files = await walkMarkdown(dir, 20000);
+  for (const file of files) {
+    if (out.results.length >= maxResults) {
+      out.truncated = true;
+      break;
+    }
+    let target;
+    let original;
+    let text;
+    try {
+      target = await fsp.realpath(file);
+      const st = await fsp.stat(target);
+      if (!st.isFile() || st.size > 8 * 1024 * 1024) continue;
+      original = await fsp.readFile(target);
+      text = decodeText(original).text;
+    } catch (err) {
+      if (err.code === 'UNSUPPORTED_TEXT_ENCODING') out.encodingSkipped++;
+      continue;
+    }
+    out.scanned++;
+    // Check one extra hit so a preview capped within this file is marked truncated.
+    const fileHits = searchReplace.previewReplace(text, { query, replacement, caseSensitive, wholeWord, regex, limit: maxResults - out.results.length + 1 });
+    if (!fileHits.length) continue;
+    out.files++;
+    // Fingerprint of the bytes this preview was computed from, so the apply
+    // step can refuse a file that changed after previewing (see
+    // replaceInFolder). Only files with hits need one.
+    out.fingerprints[file] = searchReplace.contentFingerprint(original);
+    out.targets[file] = target;
+    const remaining = maxResults - out.results.length;
+    for (const h of fileHits.slice(0, remaining)) out.results.push({ path: file, ...h });
+    if (fileHits.length > remaining) {
+      out.truncated = true;
+      break;
+    }
+  }
+  return out;
+}
+
+// Serialize note writes and replacement commits to the same resolved path.
+const noteWrites = new Map();
+
+async function withNoteWriteLock(target, write) {
+  const key = process.platform === 'win32' ? target.toLowerCase() : target;
+  const previous = noteWrites.get(key);
+  const pending = Promise.resolve(previous).catch(() => {}).then(write);
+  noteWrites.set(key, pending);
+  try {
+    return await pending;
+  } finally {
+    if (noteWrites.get(key) === pending) noteWrites.delete(key);
+  }
+}
+
+async function saveNote(file, content) {
+  const key = await fsp.realpath(file).catch((err) => {
+    if (err.code !== 'ENOENT') throw err;
+    return path.resolve(file);
+  });
+  return withNoteWriteLock(key, async () => {
+    const original = await fsp.readFile(file).catch((err) => {
+      if (err.code !== 'ENOENT') throw err;
+      return null;
+    });
+    const format = original ? decodeText(original) : { encoding: 'utf-8', bom: null };
+    await fsp.writeFile(file, encodeText(content, format));
+    return { encoding: format.encoding, hasBom: !!format.bom, mtime: (await fsp.stat(file)).mtimeMs };
+  });
+}
+
+async function replaceIfUnchanged(file, target, original, tmp, initialStat) {
+  return withNoteWriteLock(target, async () => {
+    try {
+      if (await fsp.realpath(file) !== target) return false;
+      const currentStat = await fsp.stat(target);
+      if (!currentStat.isFile() || currentStat.dev !== initialStat.dev
+        || currentStat.ino !== initialStat.ino || currentStat.mode !== initialStat.mode
+        || currentStat.size !== original.length) return false;
+      if (!(await fsp.readFile(target)).equals(original)) return false;
+    } catch (err) {
+      if (err.code === 'ENOENT' || err.code === 'ENOTDIR') return false;
+      throw err;
+    }
+    await fsp.rename(tmp, target);
+    return true;
+  });
+}
+
+// Execute a replace. `selected` is an array of { path, line, col, match } from
+// the preview list, or null for "replace all" (every match in the folder).
+// Files are re-read here, so a stale preview can under-apply (counted in
+// selectedNotFound) but never replaces the wrong text: a selected hit is only
+// applied when the text freshly scanned at its line:col still equals the
+// `match` text from the preview, and the whole file must still match the
+// fingerprint taken at preview time — an identical line inserted before a
+// hit shifts it down a line while leaving the text at the old coordinate
+// unchanged, which the per-hit check alone cannot see. A file that fails
+// either check is skipped whole (listed in staleFiles) and must be
+// re-previewed. Read-only files are
+// skipped and reported, never written. Writing goes through a uniquely named
+// temp file (exclusive creation, so an unrelated sibling can never be
+// clobbered) + rename, so a crash mid-write never leaves a half-written note;
+// the folder watcher ignores *.tmp files, and the rename is picked up by the
+// existing tree:changed → checkExternalChange flow, which reloads the open
+// document (or asks, if it has unsaved edits). The temp file and the backup
+// keep the original file's mode, so a private 0600 note does not silently
+// become 0644. A symbolic link is written through to its target, like a
+// normal save does, instead of replacing the link itself.
+async function replaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, selected = null, fingerprints = null, targets = null }) {
+  const out = { changed: [], skipped: [], files: 0, replacements: 0, backupDir: null, error: null, selectedNotFound: 0, staleFiles: [] };
+  if (!dir || !query) return out;
+  try {
+    searchReplace.buildSearchRegExp({ query, caseSensitive, wholeWord, regex });
+  } catch (err) {
+    out.error = err.message;
+    return out;
+  }
+  // `selected` is an array of { path, line, col, match } from the preview
+  // list: the `match` is the text previewed at that coordinate, so a file
+  // edited after previewing can be checked against it below.
+  const wantedByFile = new Map();
+  if (selected) {
+    for (const s of selected) {
+      if (!wantedByFile.has(s.path)) wantedByFile.set(s.path, new Map());
+      wantedByFile.get(s.path).set(searchReplace.hitKey(s), s.match);
+    }
+  }
+  const files = await walkMarkdown(dir, 20000);
+  const stamp = `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${crypto.randomBytes(3).toString('hex')}`;
+  for (const file of files) {
+    const wanted = wantedByFile.get(file);
+    if (selected && !wanted) continue;
+    // Resolve a symbolic link to its target first: stat/read/write must all
+    // act on the target, and the final rename must land on the target too,
+    // or the link itself would be replaced by a regular file.
+    const target = await fsp.realpath(file).catch(() => null);
+    if (targets?.[file] && target !== targets[file]) {
+      out.staleFiles.push(file);
+      out.selectedNotFound += wanted?.size ?? 0;
+      continue;
+    }
+    if (!target) continue;
+    let original;
+    let st;
+    try {
+      st = await fsp.stat(target);
+      if (!st.isFile() || st.size > 8 * 1024 * 1024) continue;
+      original = await fsp.readFile(target);
+    } catch {
+      continue;
+    }
+    let decoded;
+    try {
+      decoded = decodeText(original);
+    } catch (err) {
+      out.skipped.push({ path: file, reason: err.message });
+      continue;
+    }
+    const { text } = decoded;
+    // Whole-file fingerprint check, before anything is written: matching by
+    // line:col (and even by the text at that coordinate) cannot see an
+    // identical line inserted before a hit, which shifts every later hit
+    // down a line. If the file changed at all since previewing, skip the
+    // whole file and tell the user to re-preview it.
+    if (wanted && fingerprints && fingerprints[file] && searchReplace.contentFingerprint(original) !== fingerprints[file]) {
+      out.staleFiles.push(file);
+      out.selectedNotFound += wanted.size;
+      continue;
+    }
+    if (searchReplace.isReadOnlyMode(st.mode)) {
+      out.skipped.push({ path: file, reason: 'read-only' });
+      continue;
+    }
+    const { text: next, count } = searchReplace.applyReplaceText(text, { query, replacement, caseSensitive, wholeWord, regex }, wanted);
+    if (wanted) out.selectedNotFound += wanted.size - count;
+    if (!count) continue;
+    let encoded;
+    try {
+      encoded = encodeText(next, decoded);
+    } catch (err) {
+      out.skipped.push({ path: file, reason: err.message });
+      continue;
+    }
+    const backup = backupPathFor(dir, stamp, file);
+    try {
+      await fsp.mkdir(path.dirname(backup), { recursive: true });
+      await fsp.writeFile(backup, original, { flag: 'wx', mode: st.mode & 0o777 });
+      await fsp.chmod(backup, st.mode & 0o7777);
+    } catch (err) {
+      out.skipped.push({ path: file, reason: `backup failed: ${err.message}` });
+      continue;
+    }
+    // Unique name + exclusive creation: an unrelated file that happens to
+    // be called note.md.tmp is never touched, and the temp file we clean up
+    // on failure is always one this run created itself.
+    const tmp = `${target}.${process.pid}-${crypto.randomBytes(6).toString('hex')}.tmp`;
+    try {
+      await fsp.writeFile(tmp, encoded, { flag: 'wx', mode: st.mode & 0o777 });
+      await fsp.chmod(tmp, st.mode & 0o7777);
+      if (!(await replaceIfUnchanged(file, target, original, tmp, st))) {
+        await fsp.unlink(tmp).catch(() => {});
+        await fsp.unlink(backup).catch(() => {});
+        out.staleFiles.push(file);
+        if (wanted) out.selectedNotFound += count;
+        continue;
+      }
+    } catch (err) {
+      await fsp.unlink(tmp).catch(() => {});
+      out.skipped.push({ path: file, reason: err.message });
+      continue;
+    }
+    out.files++;
+    out.replacements += count;
+    out.changed.push({ path: file, target, replacements: count, backup });
+    if (!out.backupDir) out.backupDir = path.join(dir, '.posemark-backup', stamp);
   }
   return out;
 }
@@ -1150,17 +1379,14 @@ function registerIpc() {
       filters: mdFilters,
     });
     if (res.canceled || !res.filePath) return null;
-    await fsp.writeFile(res.filePath, payload.content ?? '', 'utf8');
+    const saved = await saveNote(res.filePath, payload.content ?? '');
     addRecent('file', res.filePath);
-    return res.filePath;
+    return { path: res.filePath, ...saved };
   });
 
   ipcMain.handle('file:read', (_e, p) => readTextFile(p));
-  ipcMain.handle('file:write', async (_e, p, content) => {
-    await fsp.writeFile(p, content, 'utf8');
-    const st = await fsp.stat(p);
-    return st.mtimeMs;
-  });
+  ipcMain.handle('file:write', (_e, p, content) => saveNote(p, content));
+  ipcMain.handle('file:realpath', (_e, p) => fsp.realpath(p).catch(() => null));
   ipcMain.handle('file:exists', (_e, p) => fs.existsSync(p));
   ipcMain.handle('file:dir', (_e, dir) => dirEntries(dir));
   ipcMain.handle('file:walk', (_e, dir) => walkMarkdown(dir));
@@ -1183,6 +1409,8 @@ function registerIpc() {
     return entry ? startDocWatch(entry, dir) : false;
   });
   ipcMain.handle('search:folder', (_e, payload) => searchFolder(payload || {}));
+  ipcMain.handle('search:replacePreview', (_e, payload) => previewReplaceInFolder(payload || {}));
+  ipcMain.handle('search:replace', (_e, payload) => replaceInFolder(payload || {}));
   ipcMain.handle('file:reveal', (_e, p) => shell.showItemInFolder(p));
   ipcMain.handle('file:create', async (_e, dir, name) => {
     const target = freeName(dir, name);

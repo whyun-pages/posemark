@@ -67,13 +67,14 @@ const S = {
   treeSel: null,
   expanded: new Set(),
   mtime: 0,
+  fileEncoding: null,
   loading: false,
   outline: [],
   outlineKeys: [],
   outlineQuery: '',
   outlineCollapsed: new Set(),
   currentHeading: -1,
-  search: { query: '', caseSensitive: false, wholeWord: false, regex: false, results: null },
+  search: { query: '', caseSensitive: false, wholeWord: false, regex: false, results: null, replacement: '', replacePreview: null, replaceSelection: null, replaceRunning: false },
   themeId: 'default',
   filesView: 'tree',
   listCache: null,
@@ -265,14 +266,15 @@ async function openPath(p) {
     if (!ok) return;
   }
   try {
-    const { content, mtime } = await window.ink.readFile(p);
+    const file = await window.ink.readFile(p);
     noteClosed(S.path, p);
     await clearDraft();
     S.path = p;
-    S.mtime = mtime || 0;
+    S.mtime = file.mtime || 0;
+    S.fileEncoding = fileEncodingLabel(file);
     ctx.docPath = p;
     S.loading = true;
-    setDoc(S.view, content);
+    setDoc(S.view, file.content);
     S.loading = false;
     S.dirty = false;
     setSourceMode(S.view, S.sourceMode);
@@ -297,6 +299,7 @@ async function newDocument() {
   await clearDraft();
   S.path = null;
   S.mtime = 0;
+  S.fileEncoding = null;
   S.dirty = false;
   ctx.docPath = S.folder || null;
   S.loading = true;
@@ -313,19 +316,26 @@ async function newDocument() {
 
 async function save({ saveAs = false } = {}) {
   const content = S.view.state.doc.toString();
-  if (!S.path || saveAs) {
-    const target = await window.ink.saveFileAs({
-      content,
-      defaultPath: S.path || undefined,
-    });
-    if (!target) return false;
-    S.path = target;
-    ctx.docPath = target;
-    const st = await window.ink.stat(target);
-    S.mtime = st ? st.mtime : 0;
-    if (!S.folder) setFolder(dirOf(target), { persist: false });
-  } else {
-    S.mtime = (await window.ink.writeFile(S.path, content)) || S.mtime;
+  try {
+    let saved;
+    if (!S.path || saveAs) {
+      saved = await window.ink.saveFileAs({
+        content,
+        defaultPath: S.path || undefined,
+      });
+      if (!saved) return false;
+      S.path = saved.path;
+      ctx.docPath = saved.path;
+      if (!S.folder) setFolder(dirOf(saved.path), { persist: false });
+    } else {
+      saved = await window.ink.writeFile(S.path, content);
+    }
+    S.mtime = saved.mtime || S.mtime;
+    S.fileEncoding = fileEncodingLabel(saved);
+    updateEncodingStat();
+  } catch (err) {
+    await window.ink.info({ message: 'Could not save file', detail: String(err) });
+    return false;
   }
   S.dirty = false;
   await clearDraft();
@@ -354,6 +364,7 @@ async function reloadFromDisk() {
   S.loading = false;
   view.scrollDOM.scrollTop = scroll;
   S.mtime = res.mtime || 0;
+  S.fileEncoding = fileEncodingLabel(res);
   S.dirty = false;
   syncDocMeta();
   updateTitle();
@@ -363,19 +374,16 @@ async function reloadFromDisk() {
 }
 
 let externalPrompt = false; // one "reload or keep" dialog at a time
-async function checkExternalChange() {
+// A confirmed folder replacement can trigger a check even when the file's
+// modification timestamp matches the one already recorded by the editor.
+async function checkExternalChange(opts = {}) {
   if (!S.path || externalPrompt) return;
   const st = await window.ink.stat(S.path);
   if (!st) {
     flashMessage(`${basename(S.path)} was moved or deleted`);
     return;
   }
-  if (!S.mtime || Math.abs(st.mtime - S.mtime) < 1) return;
-  if (S.config.reloadOnExternalChange === false) {
-    S.mtime = st.mtime;
-    flashMessage(`${basename(S.path)} changed on disk — your unsaved edits are kept`);
-    return;
-  }
+  if (!opts.force && (!S.mtime || Math.abs(st.mtime - S.mtime) < 1)) return;
   if (!S.dirty) {
     await reloadFromDisk();
     return;
@@ -390,6 +398,8 @@ async function checkExternalChange() {
   }
   if (disk.content === S.view.state.doc.toString()) {
     S.mtime = disk.mtime || st.mtime;
+    S.fileEncoding = fileEncodingLabel(disk);
+    updateEncodingStat();
     S.dirty = false;
     await clearDraft();
     updateTitle();
@@ -507,7 +517,9 @@ async function restoreDraft(d) {
   await clearDraft();
   S.path = target;
   ctx.docPath = target || S.folder || null;
-  S.mtime = target ? (await window.ink.stat(target))?.mtime || 0 : 0;
+  const file = target ? await window.ink.readFile(target).catch(() => null) : null;
+  S.mtime = file?.mtime || (target ? (await window.ink.stat(target))?.mtime : 0) || 0;
+  S.fileEncoding = file ? fileEncodingLabel(file) : null;
   S.loading = true;
   setDoc(S.view, draft.content);
   S.loading = false;
@@ -539,7 +551,17 @@ function scheduleAutoSave() {
 // ---------------------------------------------------------------------------
 // status bar + outline
 // ---------------------------------------------------------------------------
+function fileEncodingLabel({ encoding, hasBom }) {
+  const label = encoding.toUpperCase();
+  return encoding === 'utf-8' && hasBom ? `${label} BOM` : label;
+}
+
+function updateEncodingStat() {
+  $('#stat-encoding').textContent = S.path ? (S.fileEncoding || '') : 'UTF-8';
+}
+
 function updateStatus() {
+  updateEncodingStat();
   const text = S.view.state.doc.toString();
   const { words, chars } = docStats(text);
   $('#stat-words').textContent = `${words} ${words === 1 ? 'word' : 'words'}`;
@@ -1513,10 +1535,20 @@ function openSearchPanel(prefill) {
   input.select();
 }
 
+let searchRequestId = 0;
+
 async function runSearch() {
+  const requestId = ++searchRequestId;
+  const dir = S.folder;
   const input = $('#search-input');
   const query = input.value;
   S.search.query = query;
+  // A new query invalidates any replace preview built from the old one.
+  if (S.search.replacePreview) {
+    S.search.replacePreview = null;
+    S.search.replaceSelection = null;
+    setReplaceMode(false);
+  }
   const host = $('#search-results');
   if (!S.folder) {
     host.innerHTML = '<div class="empty-hint">Open a folder first</div>';
@@ -1529,15 +1561,34 @@ async function runSearch() {
   }
   $('#search-summary').textContent = 'Searching…';
   const res = await window.ink.searchFolder({
-    dir: S.folder,
+    dir,
     query,
     caseSensitive: S.search.caseSensitive,
     wholeWord: S.search.wholeWord,
     regex: S.search.regex,
   });
-  if (query !== $('#search-input').value) return; // a newer search is on its way
+  if (requestId !== searchRequestId || dir !== S.folder || query !== input.value) return;
   S.search.results = res;
   renderSearchResults(res);
+}
+
+function searchGroupFor(host, hit) {
+  const group = document.createElement('div');
+  group.className = 'search-group';
+  const head = document.createElement('div');
+  head.className = 'search-file';
+  const name = document.createElement('span');
+  name.className = 'search-file-name';
+  name.textContent = basename(hit.path);
+  const dir = document.createElement('span');
+  dir.className = 'search-file-dir';
+  const rel = norm(hit.path).slice(norm(S.folder).length).replace(/^\/+/, '');
+  dir.textContent = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+  head.append(name, dir);
+  head.addEventListener('click', () => group.classList.toggle('collapsed'));
+  group.appendChild(head);
+  host.appendChild(group);
+  return group;
 }
 
 function renderSearchResults(res) {
@@ -1553,27 +1604,17 @@ function renderSearchResults(res) {
   summary.textContent = n
     ? `${n}${res.truncated ? '+' : ''} result${n === 1 ? '' : 's'} in ${res.files} file${res.files === 1 ? '' : 's'}`
     : `No results in ${res.scanned} file${res.scanned === 1 ? '' : 's'}`;
+  if (res.encodingSkipped) {
+    const n = res.encodingSkipped;
+    summary.textContent += ` · ${n} file${n === 1 ? '' : 's'} skipped due to unsupported encoding`;
+  }
   if (!n) return;
   let currentFile = null;
   let group = null;
   for (const hit of res.results) {
     if (!samePath(hit.path, currentFile)) {
       currentFile = hit.path;
-      group = document.createElement('div');
-      group.className = 'search-group';
-      const head = document.createElement('div');
-      head.className = 'search-file';
-      const name = document.createElement('span');
-      name.className = 'search-file-name';
-      name.textContent = basename(hit.path);
-      const dir = document.createElement('span');
-      dir.className = 'search-file-dir';
-      const rel = norm(hit.path).slice(norm(S.folder).length).replace(/^\/+/, '');
-      dir.textContent = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
-      head.append(name, dir);
-      head.addEventListener('click', () => group.classList.toggle('collapsed'));
-      group.appendChild(head);
-      host.appendChild(group);
+      group = searchGroupFor(host, hit);
     }
     const row = document.createElement('div');
     row.className = 'search-hit';
@@ -1588,6 +1629,247 @@ function renderSearchResults(res) {
     row.append(ln, text);
     row.addEventListener('click', () => openSearchHit(hit));
     group.appendChild(row);
+  }
+}
+
+// One hit in the replace preview, as the user checked it: path + line:col.
+const replaceHitKey = (hit) => `${hit.path}\n${hit.line}:${hit.col}`;
+
+function setReplaceMode(previewing) {
+  $('#search-replace-actions').hidden = previewing;
+  $('#search-replace-execute').hidden = !previewing;
+}
+
+// While a replace is running, Preview replace and both execution buttons
+// are disabled, so no second operation can start until the first finishes.
+function setReplaceButtonsDisabled(disabled) {
+  for (const id of ['#btn-replace-preview', '#btn-replace-selected', '#btn-replace-all']) {
+    const btn = $(id);
+    if (btn) btn.disabled = disabled;
+  }
+}
+
+async function runReplacePreview() {
+  if (S.search.replaceRunning) return; // a replace is in flight; don't move the preview under it
+  const query = $('#search-input').value;
+  const replacement = $('#search-replace-input').value;
+  const caseSensitive = S.search.caseSensitive;
+  const wholeWord = S.search.wholeWord;
+  const regex = S.search.regex;
+  S.search.replacement = replacement;
+  if (!S.folder) {
+    flashMessage('Open a folder first');
+    return;
+  }
+  if (!query.trim()) {
+    flashMessage('Type something to search for first');
+    return;
+  }
+  const requestId = ++searchRequestId;
+  const dir = S.folder;
+  $('#search-summary').textContent = 'Previewing…';
+  const res = await window.ink.replacePreviewFolder({
+    dir,
+    query,
+    replacement,
+    caseSensitive,
+    wholeWord,
+    regex,
+  });
+  // The query, replacement or matching options changed while previewing:
+  // this result no longer describes what is on screen, so drop it.
+  if (requestId !== searchRequestId || dir !== S.folder
+    || query !== $('#search-input').value || replacement !== $('#search-replace-input').value
+    || caseSensitive !== S.search.caseSensitive || wholeWord !== S.search.wholeWord || regex !== S.search.regex) return;
+  if (res.error) {
+    S.search.replacePreview = null;
+    S.search.replaceSelection = null;
+    setReplaceMode(false);
+    renderSearchResults(res);
+    return;
+  }
+  // Snapshot the query, matching options and replacement with the preview:
+  // executing later must use exactly what the preview showed, not whatever
+  // the fields hold by then.
+  res.dir = dir;
+  res.query = query;
+  res.caseSensitive = caseSensitive;
+  res.wholeWord = wholeWord;
+  res.regex = regex;
+  res.replacement = replacement;
+  S.search.replacePreview = res;
+  S.search.replaceSelection = new Set(res.results.map(replaceHitKey));
+  renderReplacePreview(res);
+}
+
+function renderReplacePreview(res) {
+  const host = $('#search-results');
+  const summary = $('#search-summary');
+  host.innerHTML = '';
+  setReplaceMode(true);
+  const n = res.results.length;
+  summary.textContent = n
+    ? `${n}${res.truncated ? '+' : ''} replacement${n === 1 ? '' : 's'} in ${res.files} file${res.files === 1 ? '' : 's'} — uncheck any to skip, then Replace selected or Replace all${res.truncated ? '. Only the first 2,000 hits are shown; Replace all replaces just these' : ''}`
+    : `No matches in ${res.scanned} file${res.scanned === 1 ? '' : 's'} — nothing to replace`;
+  if (res.encodingSkipped) {
+    const n = res.encodingSkipped;
+    summary.textContent += ` · ${n} file${n === 1 ? '' : 's'} skipped due to unsupported encoding`;
+  }
+  if (!n) {
+    setReplaceMode(false);
+    return;
+  }
+  let currentFile = null;
+  let group = null;
+  for (const hit of res.results) {
+    if (!samePath(hit.path, currentFile)) {
+      currentFile = hit.path;
+      group = searchGroupFor(host, hit);
+    }
+    const row = document.createElement('div');
+    row.className = 'search-hit replace-hit';
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'replace-check';
+    check.checked = true;
+    check.addEventListener('change', () => {
+      const key = replaceHitKey(hit);
+      if (S.search.replacePreview !== res) return;
+      if (check.checked) S.search.replaceSelection.add(key);
+      else S.search.replaceSelection.delete(key);
+    });
+    const lines = document.createElement('div');
+    lines.className = 'replace-lines';
+    const before = document.createElement('div');
+    before.className = 'search-text';
+    const mark = document.createElement('mark');
+    mark.textContent = hit.match;
+    before.append(document.createTextNode(hit.before), mark, document.createTextNode(hit.after));
+    const after = document.createElement('div');
+    after.className = 'search-text replaced';
+    const mark2 = document.createElement('mark');
+    mark2.textContent = hit.replacement;
+    after.append(document.createTextNode(hit.before), mark2, document.createTextNode(hit.after));
+    lines.append(before, after);
+    const ln = document.createElement('span');
+    ln.className = 'search-line';
+    ln.textContent = String(hit.line);
+    row.append(check, ln, lines);
+    row.addEventListener('click', (e) => {
+      if (e.target === check) return;
+      openSearchHit(hit);
+    });
+    group.appendChild(row);
+  }
+}
+
+async function runReplace(mode) {
+  const preview = S.search.replacePreview;
+  if (!preview || !preview.results.length || S.search.replaceRunning
+    || preview.dir !== S.folder || preview.query !== $('#search-input').value) return;
+  // In-flight guard, set before the first await: while a replace is running
+  // its buttons are disabled, so a second click cannot launch a duplicate
+  // write over the same selection (and expand a hit twice).
+  S.search.replaceRunning = true;
+  setReplaceButtonsDisabled(true);
+  try {
+  // Replace all passes the previewed hits' coordinates, exactly like Replace
+  // selected does for the checked ones: the main process then only touches
+  // those hits, so a preview truncated at 2,000 can never silently replace
+  // unpreviewed matches (or skip the save-first guard for them). Each hit
+  // also carries the text previewed at its coordinate, so the main process
+  // can refuse a hit whose file changed after previewing.
+  const selected = preview.results
+    .filter((h) => mode === 'all' || S.search.replaceSelection.has(replaceHitKey(h)))
+    .map((h) => ({ path: h.path, line: h.line, col: h.col, match: h.match }));
+  if (!selected.length) {
+    flashMessage('Nothing selected');
+    return;
+  }
+  // Use the query, matching options and replacement snapshotted with the
+  // preview, not the fields' current values — they may have been edited
+  // after previewing.
+  const query = preview.query ?? $('#search-input').value;
+  const replacement = preview.replacement ?? $('#search-replace-input').value;
+  const caseSensitive = preview.caseSensitive ?? S.search.caseSensitive;
+  const wholeWord = preview.wholeWord ?? S.search.wholeWord;
+  const regex = preview.regex ?? S.search.regex;
+  const openPath = S.path;
+  const openTarget = openPath ? await window.ink.resolveFilePath(openPath) : null;
+  if (S.path !== openPath || S.search.replacePreview !== preview) return;
+  // Match the targets read by the preview, including notes opened via an alias.
+  if (openTarget && S.dirty && selected.some((hit) => preview.targets[hit.path] === openTarget)) {
+    const res = await window.ink.confirm({
+      type: 'warning',
+      message: `“${basename(S.path)}” has unsaved edits and would be changed`,
+      detail: 'Save it first, or cancel the replace.',
+      buttons: ['Save and Replace', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (res !== 0 || S.path !== openPath || S.search.replacePreview !== preview) return;
+    if (!(await save()) || S.path !== openPath || S.search.replacePreview !== preview) return;
+  }
+  const out = await window.ink.replaceInFolder({
+    dir: preview.dir,
+    query,
+    replacement,
+    caseSensitive,
+    wholeWord,
+    regex,
+    selected,
+    // Fingerprints of the files as previewed: the main process refuses a
+    // file whose content changed after previewing (see staleFiles below).
+    fingerprints: preview.fingerprints,
+    targets: preview.targets,
+  });
+  if (out.error) {
+    flashMessage(`Replace failed: ${out.error}`);
+    return;
+  }
+  S.search.replacePreview = null;
+  S.search.replaceSelection = null;
+  setReplaceMode(false);
+  const parts = [`Replaced ${out.replacements} in ${out.files} file${out.files === 1 ? '' : 's'}`];
+  if (out.skipped.length) {
+    parts.push(`${out.skipped.length} skipped (${out.skipped.map((s) => `${basename(s.path)}: ${s.reason}`).join(', ')})`);
+  }
+  if (out.selectedNotFound) parts.push(`${out.selectedNotFound} selected hit${out.selectedNotFound === 1 ? '' : 's'} no longer found`);
+  if (out.staleFiles && out.staleFiles.length) {
+    parts.push(`${out.staleFiles.length} file${out.staleFiles.length === 1 ? '' : 's'} changed since preview (${out.staleFiles.map((p) => basename(p)).join(', ')}) — preview again to replace ${out.staleFiles.length === 1 ? 'it' : 'them'}`);
+  }
+  const summary = $('#search-summary');
+  summary.textContent = parts.join('. ');
+  const host = $('#search-results');
+  host.innerHTML = '';
+  const done = document.createElement('div');
+  done.className = 'replace-done';
+  done.textContent = `${parts.join('. ')}.`;
+  host.appendChild(done);
+  if (out.backupDir) {
+    const rel = norm(out.backupDir).slice(norm(S.folder).length).replace(/^\/+/, '');
+    const note = document.createElement('div');
+    note.className = 'replace-backup';
+    note.textContent = `Backups saved in ${rel} — copy a .bak file back over the original to undo.`;
+    host.appendChild(note);
+    const btn = document.createElement('button');
+    btn.className = 'mini-btn';
+    btn.textContent = 'Reveal backups';
+    btn.addEventListener('click', () => window.ink.reveal(out.backupDir));
+    host.appendChild(btn);
+  }
+  refreshTree();
+  // Refresh the affected document immediately while the watcher catches up.
+  if (S.path && out.changed.length) {
+    const currentPath = S.path;
+    const currentTarget = await window.ink.resolveFilePath(currentPath);
+    if (S.path === currentPath && out.changed.some(({ target }) => target === currentTarget)) {
+      await checkExternalChange({ force: true });
+    }
+  }
+  } finally {
+    S.search.replaceRunning = false;
+    setReplaceButtonsDisabled(false);
   }
 }
 
@@ -1620,7 +1902,48 @@ function wireSearch() {
       S.view.focus();
     }
   });
-  input.addEventListener('input', debounce(() => runSearch(), 350));
+  const debouncedSearch = debounce((requestId) => {
+    if (requestId === searchRequestId) runSearch();
+  }, 350);
+  input.addEventListener('input', () => {
+    // Invalidate a replace preview synchronously: the debounced search below
+    // runs 350 ms later, and until then the old preview's coordinates must
+    // not be executable with the new query. (runSearch() itself also clears
+    // the preview, so this only moves the invalidation earlier.)
+    if (S.search.replacePreview) {
+      S.search.replacePreview = null;
+      S.search.replaceSelection = null;
+      setReplaceMode(false);
+    }
+    debouncedSearch(++searchRequestId);
+  });
+  $('#search-replace-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runReplacePreview();
+    }
+  });
+  // Editing the replacement after previewing voids the preview: the
+  // before/after rows on screen were computed with the old text, so they
+  // must not be executed. The user re-previews with the new text instead.
+  $('#search-replace-input').addEventListener('input', () => {
+    const preview = S.search.replacePreview;
+    if (preview && $('#search-replace-input').value !== preview.replacement) {
+      S.search.replacePreview = null;
+      S.search.replaceSelection = null;
+      setReplaceMode(false);
+      runSearch();
+    }
+  });
+  $('#btn-replace-preview').addEventListener('click', runReplacePreview);
+  $('#btn-replace-selected').addEventListener('click', () => runReplace('selected'));
+  $('#btn-replace-all').addEventListener('click', () => runReplace('all'));
+  $('#btn-replace-cancel').addEventListener('click', () => {
+    S.search.replacePreview = null;
+    S.search.replaceSelection = null;
+    setReplaceMode(false);
+    runSearch();
+  });
   for (const btn of document.querySelectorAll('.search-opt')) {
     const key = btn.dataset.opt;
     btn.classList.toggle('on', !!S.search[key]);
@@ -1712,12 +2035,6 @@ const PREF_SECTIONS = [
         title: 'Files',
         fields: [
           { key: 'defaultExtension', label: 'Default file extension', type: 'text', hint: 'Used for new files and Save As' },
-          {
-            key: 'reloadOnExternalChange',
-            label: 'Reload the open file when it changes on disk',
-            type: 'bool',
-            hint: 'With unsaved edits you are asked whether to reload or keep them',
-          },
           {
             key: 'recordRecent',
             label: 'Record recently opened files and folders',
@@ -2515,13 +2832,21 @@ function flashMessage(text) {
 const commands = {
   'file:new': () => newDocument(),
   'file:open': async () => {
-    const res = await window.ink.openFileDialog(S.folder);
+    let res;
+    try {
+      res = await window.ink.openFileDialog(S.folder);
+    } catch (err) {
+      await window.ink.info({ message: 'Could not open file', detail: String(err) });
+      return;
+    }
     if (res) {
       if (S.dirty && !(await maybeSaveBeforeSwitch())) return;
       if (!S.folder) await setFolder(dirOf(res.path), { persist: false });
       noteClosed(S.path, res.path);
       await clearDraft();
       S.path = res.path;
+      S.mtime = res.mtime || 0;
+      S.fileEncoding = fileEncodingLabel(res);
       ctx.docPath = res.path;
       S.loading = true;
       setDoc(S.view, res.content);
