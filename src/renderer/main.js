@@ -73,7 +73,7 @@ const S = {
   outlineQuery: '',
   outlineCollapsed: new Set(),
   currentHeading: -1,
-  search: { query: '', caseSensitive: false, wholeWord: false, regex: false, results: null },
+  search: { query: '', caseSensitive: false, wholeWord: false, regex: false, results: null, replacement: '', replacePreview: null, replaceSelection: null },
   themeId: 'default',
   filesView: 'tree',
   listCache: null,
@@ -1517,6 +1517,12 @@ async function runSearch() {
   const input = $('#search-input');
   const query = input.value;
   S.search.query = query;
+  // A new query invalidates any replace preview built from the old one.
+  if (S.search.replacePreview) {
+    S.search.replacePreview = null;
+    S.search.replaceSelection = null;
+    setReplaceMode(false);
+  }
   const host = $('#search-results');
   if (!S.folder) {
     host.innerHTML = '<div class="empty-hint">Open a folder first</div>';
@@ -1540,6 +1546,25 @@ async function runSearch() {
   renderSearchResults(res);
 }
 
+function searchGroupFor(host, hit) {
+  const group = document.createElement('div');
+  group.className = 'search-group';
+  const head = document.createElement('div');
+  head.className = 'search-file';
+  const name = document.createElement('span');
+  name.className = 'search-file-name';
+  name.textContent = basename(hit.path);
+  const dir = document.createElement('span');
+  dir.className = 'search-file-dir';
+  const rel = norm(hit.path).slice(norm(S.folder).length).replace(/^\/+/, '');
+  dir.textContent = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
+  head.append(name, dir);
+  head.addEventListener('click', () => group.classList.toggle('collapsed'));
+  group.appendChild(head);
+  host.appendChild(group);
+  return group;
+}
+
 function renderSearchResults(res) {
   const host = $('#search-results');
   const summary = $('#search-summary');
@@ -1559,21 +1584,7 @@ function renderSearchResults(res) {
   for (const hit of res.results) {
     if (!samePath(hit.path, currentFile)) {
       currentFile = hit.path;
-      group = document.createElement('div');
-      group.className = 'search-group';
-      const head = document.createElement('div');
-      head.className = 'search-file';
-      const name = document.createElement('span');
-      name.className = 'search-file-name';
-      name.textContent = basename(hit.path);
-      const dir = document.createElement('span');
-      dir.className = 'search-file-dir';
-      const rel = norm(hit.path).slice(norm(S.folder).length).replace(/^\/+/, '');
-      dir.textContent = rel.includes('/') ? rel.slice(0, rel.lastIndexOf('/')) : '';
-      head.append(name, dir);
-      head.addEventListener('click', () => group.classList.toggle('collapsed'));
-      group.appendChild(head);
-      host.appendChild(group);
+      group = searchGroupFor(host, hit);
     }
     const row = document.createElement('div');
     row.className = 'search-hit';
@@ -1589,6 +1600,181 @@ function renderSearchResults(res) {
     row.addEventListener('click', () => openSearchHit(hit));
     group.appendChild(row);
   }
+}
+
+// One hit in the replace preview, as the user checked it: path + line:col.
+const replaceHitKey = (hit) => `${hit.path}\n${hit.line}:${hit.col}`;
+
+function setReplaceMode(previewing) {
+  $('#search-replace-actions').hidden = previewing;
+  $('#search-replace-execute').hidden = !previewing;
+}
+
+async function runReplacePreview() {
+  const query = $('#search-input').value;
+  const replacement = $('#search-replace-input').value;
+  S.search.replacement = replacement;
+  if (!S.folder) {
+    flashMessage('Open a folder first');
+    return;
+  }
+  if (!query.trim()) {
+    flashMessage('Type something to search for first');
+    return;
+  }
+  $('#search-summary').textContent = 'Previewing…';
+  const res = await window.ink.replacePreviewFolder({
+    dir: S.folder,
+    query,
+    replacement,
+    caseSensitive: S.search.caseSensitive,
+    wholeWord: S.search.wholeWord,
+    regex: S.search.regex,
+  });
+  if (query !== $('#search-input').value || replacement !== $('#search-replace-input').value) return;
+  if (res.error) {
+    S.search.replacePreview = null;
+    S.search.replaceSelection = null;
+    setReplaceMode(false);
+    renderSearchResults(res);
+    return;
+  }
+  S.search.replacePreview = res;
+  S.search.replaceSelection = new Set(res.results.map(replaceHitKey));
+  renderReplacePreview(res);
+}
+
+function renderReplacePreview(res) {
+  const host = $('#search-results');
+  const summary = $('#search-summary');
+  host.innerHTML = '';
+  setReplaceMode(true);
+  const n = res.results.length;
+  summary.textContent = n
+    ? `${n}${res.truncated ? '+' : ''} replacement${n === 1 ? '' : 's'} in ${res.files} file${res.files === 1 ? '' : 's'} — uncheck any to skip, then Replace selected or Replace all`
+    : `No matches in ${res.scanned} file${res.scanned === 1 ? '' : 's'} — nothing to replace`;
+  if (!n) {
+    setReplaceMode(false);
+    return;
+  }
+  let currentFile = null;
+  let group = null;
+  for (const hit of res.results) {
+    if (!samePath(hit.path, currentFile)) {
+      currentFile = hit.path;
+      group = searchGroupFor(host, hit);
+    }
+    const row = document.createElement('div');
+    row.className = 'search-hit replace-hit';
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.className = 'replace-check';
+    check.checked = true;
+    check.addEventListener('change', () => {
+      const key = replaceHitKey(hit);
+      if (check.checked) S.search.replaceSelection.add(key);
+      else S.search.replaceSelection.delete(key);
+    });
+    const lines = document.createElement('div');
+    lines.className = 'replace-lines';
+    const before = document.createElement('div');
+    before.className = 'search-text';
+    const mark = document.createElement('mark');
+    mark.textContent = hit.match;
+    before.append(document.createTextNode(hit.before), mark, document.createTextNode(hit.after));
+    const after = document.createElement('div');
+    after.className = 'search-text replaced';
+    const mark2 = document.createElement('mark');
+    mark2.textContent = hit.replacement;
+    after.append(document.createTextNode(hit.before), mark2, document.createTextNode(hit.after));
+    lines.append(before, after);
+    const ln = document.createElement('span');
+    ln.className = 'search-line';
+    ln.textContent = String(hit.line);
+    row.append(check, ln, lines);
+    row.addEventListener('click', (e) => {
+      if (e.target === check) return;
+      openSearchHit(hit);
+    });
+    group.appendChild(row);
+  }
+}
+
+async function runReplace(mode) {
+  const preview = S.search.replacePreview;
+  if (!preview || !preview.results.length) return;
+  let selected = null;
+  if (mode === 'selected') {
+    selected = preview.results
+      .filter((h) => S.search.replaceSelection.has(replaceHitKey(h)))
+      .map((h) => ({ path: h.path, line: h.line, col: h.col }));
+    if (!selected.length) {
+      flashMessage('Nothing selected');
+      return;
+    }
+  }
+  const query = $('#search-input').value;
+  const replacement = $('#search-replace-input').value;
+  const affected = new Set((selected || preview.results).map((h) => h.path));
+  // The open document may be among the files about to change: never silently
+  // overwrite unsaved edits in it.
+  if (S.path && S.dirty && [...affected].some((p) => samePath(p, S.path))) {
+    const res = await window.ink.confirm({
+      type: 'warning',
+      message: `“${basename(S.path)}” has unsaved edits and would be changed`,
+      detail: 'Save it first, or cancel the replace.',
+      buttons: ['Save and Replace', 'Cancel'],
+      defaultId: 0,
+      cancelId: 1,
+    });
+    if (res !== 0) return;
+    if (!(await save())) return;
+  }
+  const out = await window.ink.replaceInFolder({
+    dir: S.folder,
+    query,
+    replacement,
+    caseSensitive: S.search.caseSensitive,
+    wholeWord: S.search.wholeWord,
+    regex: S.search.regex,
+    selected,
+  });
+  if (out.error) {
+    flashMessage(`Replace failed: ${out.error}`);
+    return;
+  }
+  S.search.replacePreview = null;
+  S.search.replaceSelection = null;
+  setReplaceMode(false);
+  const parts = [`Replaced ${out.replacements} in ${out.files} file${out.files === 1 ? '' : 's'}`];
+  if (out.skipped.length) {
+    parts.push(`${out.skipped.length} skipped (${out.skipped.map((s) => `${basename(s.path)}: ${s.reason}`).join(', ')})`);
+  }
+  if (out.selectedNotFound) parts.push(`${out.selectedNotFound} selected hit${out.selectedNotFound === 1 ? '' : 's'} no longer found`);
+  const summary = $('#search-summary');
+  summary.textContent = parts.join('. ');
+  const host = $('#search-results');
+  host.innerHTML = '';
+  const done = document.createElement('div');
+  done.className = 'replace-done';
+  done.textContent = `${parts.join('. ')}.`;
+  host.appendChild(done);
+  if (out.backupDir) {
+    const rel = norm(out.backupDir).slice(norm(S.folder).length).replace(/^\/+/, '');
+    const note = document.createElement('div');
+    note.className = 'replace-backup';
+    note.textContent = `Backups saved in ${rel} — copy a .bak file back over the original to undo.`;
+    host.appendChild(note);
+    const btn = document.createElement('button');
+    btn.className = 'mini-btn';
+    btn.textContent = 'Reveal backups';
+    btn.addEventListener('click', () => window.ink.reveal(out.backupDir));
+    host.appendChild(btn);
+  }
+  refreshTree();
+  // The folder watcher will also notice the renames, but pick up a changed
+  // open document right away instead of waiting for its debounce.
+  if (S.path && [...affected].some((p) => samePath(p, S.path))) await checkExternalChange();
 }
 
 async function openSearchHit(hit) {
@@ -1621,6 +1807,21 @@ function wireSearch() {
     }
   });
   input.addEventListener('input', debounce(() => runSearch(), 350));
+  $('#search-replace-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      runReplacePreview();
+    }
+  });
+  $('#btn-replace-preview').addEventListener('click', runReplacePreview);
+  $('#btn-replace-selected').addEventListener('click', () => runReplace('selected'));
+  $('#btn-replace-all').addEventListener('click', () => runReplace('all'));
+  $('#btn-replace-cancel').addEventListener('click', () => {
+    S.search.replacePreview = null;
+    S.search.replaceSelection = null;
+    setReplaceMode(false);
+    runSearch();
+  });
   for (const btn of document.querySelectorAll('.search-opt')) {
     const key = btn.dataset.opt;
     btn.classList.toggle('on', !!S.search[key]);

@@ -13,6 +13,7 @@ const { Drafts, draftId } = require('./drafts');
 const { UserThemes } = require('./user-themes');
 const images = require('./images');
 const { setPdfInfo } = require('./pdf-info');
+const searchReplace = require('./search-replace');
 const i18n = require('./i18n');
 
 const MD_EXT = ['md', 'markdown', 'mmd', 'mdown', 'mkd', 'mdwn', 'mdtxt', 'mdtext', 'txt', 'text', 'rmd'];
@@ -802,6 +803,138 @@ async function searchFolder({ dir, query, caseSensitive = false, wholeWord = fal
 }
 
 // ---------------------------------------------------------------------------
+// replace across the folder (Search panel › Preview replace)
+// ---------------------------------------------------------------------------
+// Backups: before a file is changed for the first time in one replace run, its
+// original content is copied to `<dir>/.posemark-backup/<stamp>/<relpath>.bak`.
+// The directory is hidden (the tree and the folder search skip dot-directories
+// by default) and the `.bak` suffix is not a Markdown extension, so backups are
+// never searched or listed as notes. Restoring one is copying it back over the
+// original and deleting the `.bak` suffix. One backup per file per run.
+function backupPathFor(dir, stamp, file) {
+  const rel = path.relative(dir, file);
+  return path.join(dir, '.posemark-backup', stamp, `${rel}.bak`);
+}
+
+// Same file walk and size cap as searchFolder; each hit also carries the
+// replacement text for that hit and the context line as it would look after
+// replacing just that hit.
+async function previewReplaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
+  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null };
+  if (!dir || !query) return out;
+  try {
+    searchReplace.buildSearchRegExp({ query, caseSensitive, wholeWord, regex });
+  } catch (err) {
+    out.error = err.message;
+    return out;
+  }
+  const files = await walkMarkdown(dir, 20000);
+  for (const file of files) {
+    if (out.results.length >= maxResults) {
+      out.truncated = true;
+      break;
+    }
+    let text;
+    try {
+      const st = await fsp.stat(file);
+      if (st.size > 8 * 1024 * 1024) continue;
+      text = await fsp.readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    out.scanned++;
+    const fileHits = searchReplace.previewReplace(text, { query, replacement, caseSensitive, wholeWord, regex });
+    if (!fileHits.length) continue;
+    out.files++;
+    for (const h of fileHits) {
+      if (out.results.length >= maxResults) {
+        out.truncated = true;
+        break;
+      }
+      out.results.push({ path: file, ...h });
+    }
+  }
+  return out;
+}
+
+// Execute a replace. `selected` is an array of { path, line, col } from the
+// preview list, or null for "replace all". Files are re-read here, so a stale
+// preview can under-apply (counted in selectedNotFound) but never replaces
+// the wrong text. Read-only files are skipped and reported, never written.
+// Writing goes through a temp file + rename, so a crash mid-write never leaves
+// a half-written note; the folder watcher ignores *.tmp files, and the rename
+// is picked up by the existing tree:changed → checkExternalChange flow, which
+// reloads the open document (or asks, if it has unsaved edits).
+async function replaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, selected = null }) {
+  const out = { changed: [], skipped: [], files: 0, replacements: 0, backupDir: null, error: null, selectedNotFound: 0 };
+  if (!dir || !query) return out;
+  try {
+    searchReplace.buildSearchRegExp({ query, caseSensitive, wholeWord, regex });
+  } catch (err) {
+    out.error = err.message;
+    return out;
+  }
+  const wantedByFile = new Map();
+  if (selected) {
+    for (const s of selected) {
+      if (!wantedByFile.has(s.path)) wantedByFile.set(s.path, new Set());
+      wantedByFile.get(s.path).add(searchReplace.hitKey(s));
+    }
+  }
+  const files = await walkMarkdown(dir, 20000);
+  const stamp = `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${crypto.randomBytes(3).toString('hex')}`;
+  for (const file of files) {
+    if (selected && !wantedByFile.has(file)) continue;
+    let text;
+    let st;
+    try {
+      st = await fsp.stat(file);
+      if (st.size > 8 * 1024 * 1024) continue;
+      text = await fsp.readFile(file, 'utf8');
+    } catch {
+      continue;
+    }
+    if (searchReplace.isReadOnlyMode(st.mode)) {
+      out.skipped.push({ path: file, reason: 'read-only' });
+      continue;
+    }
+    const wanted = wantedByFile.get(file) || null;
+    const hits = searchReplace.findMatches(text, { query, caseSensitive, wholeWord, regex });
+    if (wanted) {
+      const found = hits.filter((h) => wanted.has(searchReplace.hitKey(h)));
+      out.selectedNotFound += wanted.size - found.length;
+      if (!found.length) continue;
+    } else if (!hits.length) {
+      continue;
+    }
+    const { text: next, count } = searchReplace.applyReplaceText(text, { query, replacement, caseSensitive, wholeWord, regex }, wanted);
+    if (!count) continue;
+    const backup = backupPathFor(dir, stamp, file);
+    try {
+      await fsp.mkdir(path.dirname(backup), { recursive: true });
+      await fsp.writeFile(backup, text, 'utf8');
+    } catch (err) {
+      out.skipped.push({ path: file, reason: `backup failed: ${err.message}` });
+      continue;
+    }
+    const tmp = `${file}.tmp`;
+    try {
+      await fsp.writeFile(tmp, next, 'utf8');
+      await fsp.rename(tmp, file);
+    } catch (err) {
+      await fsp.unlink(tmp).catch(() => {});
+      out.skipped.push({ path: file, reason: err.message });
+      continue;
+    }
+    out.files++;
+    out.replacements += count;
+    out.changed.push({ path: file, replacements: count, backup });
+    if (!out.backupDir) out.backupDir = path.join(dir, '.posemark-backup', stamp);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // export
 // ---------------------------------------------------------------------------
 // Load an export page into a throwaway window (written to a temp file so relative file:// images
@@ -1183,6 +1316,8 @@ function registerIpc() {
     return entry ? startDocWatch(entry, dir) : false;
   });
   ipcMain.handle('search:folder', (_e, payload) => searchFolder(payload || {}));
+  ipcMain.handle('search:replacePreview', (_e, payload) => previewReplaceInFolder(payload || {}));
+  ipcMain.handle('search:replace', (_e, payload) => replaceInFolder(payload || {}));
   ipcMain.handle('file:reveal', (_e, p) => shell.showItemInFolder(p));
   ipcMain.handle('file:create', async (_e, dir, name) => {
     const target = freeName(dir, name);

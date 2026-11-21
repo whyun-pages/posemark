@@ -72,6 +72,17 @@
           </div>
         </div>
         <div id="search-summary" class="search-summary"></div>
+        <div class="search-replace">
+          <input id="search-replace-input" type="text" placeholder="Replace with… ($1, $&, $$ work in regex mode)" autocomplete="off" spellcheck="false" />
+          <div class="search-replace-actions" id="search-replace-actions">
+            <button class="mini-btn" id="btn-replace-preview" title="Show what would change, one hit at a time">Preview replace</button>
+          </div>
+          <div class="search-replace-actions" id="search-replace-execute" hidden>
+            <button class="mini-btn" id="btn-replace-selected" title="Replace only the checked hits">Replace selected</button>
+            <button class="mini-btn" id="btn-replace-all" title="Replace every hit in the preview">Replace all</button>
+            <button class="mini-btn" id="btn-replace-cancel" title="Back to the search results">Cancel</button>
+          </div>
+        </div>
         <div id="search-results" class="search-results"></div>
       </div>
     </aside>

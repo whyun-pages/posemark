@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('ink', {
   watchFolder: (dir) => ipcRenderer.invoke('folder:watch', dir),
   watchDoc: (dir) => ipcRenderer.invoke('doc:watch', dir),
   searchFolder: (payload) => ipcRenderer.invoke('search:folder', payload),
+  replacePreviewFolder: (payload) => ipcRenderer.invoke('search:replacePreview', payload),
+  replaceInFolder: (payload) => ipcRenderer.invoke('search:replace', payload),
   reveal: (p) => ipcRenderer.invoke('file:reveal', p),
   createFile: (dir, name) => ipcRenderer.invoke('file:create', dir, name),
   makeDir: (dir, name) => ipcRenderer.invoke('file:mkdir', dir, name),
