@@ -563,9 +563,9 @@ const mdFilters = [
 ];
 
 async function readTextFile(p) {
-  const { text: content, encoding } = decodeText(await fsp.readFile(p));
+  const { text: content, encoding, bom } = decodeText(await fsp.readFile(p));
   const st = await fsp.stat(p);
-  return { path: p, content, encoding, mtime: st.mtimeMs };
+  return { path: p, content, encoding, hasBom: !!bom, mtime: st.mtimeMs };
 }
 
 const isMarkdownName = (name) => MD_EXT.includes(path.extname(name).slice(1).toLowerCase());
@@ -891,8 +891,9 @@ async function saveNote(file, content) {
       if (err.code !== 'ENOENT') throw err;
       return null;
     });
-    await fsp.writeFile(file, encodeText(content, original ? decodeText(original) : undefined));
-    return (await fsp.stat(file)).mtimeMs;
+    const format = original ? decodeText(original) : { encoding: 'utf-8', bom: null };
+    await fsp.writeFile(file, encodeText(content, format));
+    return { encoding: format.encoding, hasBom: !!format.bom, mtime: (await fsp.stat(file)).mtimeMs };
   });
 }
 
@@ -1386,9 +1387,9 @@ function registerIpc() {
       filters: mdFilters,
     });
     if (res.canceled || !res.filePath) return null;
-    await saveNote(res.filePath, payload.content ?? '');
+    const saved = await saveNote(res.filePath, payload.content ?? '');
     addRecent('file', res.filePath);
-    return res.filePath;
+    return { path: res.filePath, ...saved };
   });
 
   ipcMain.handle('file:read', (_e, p) => readTextFile(p));

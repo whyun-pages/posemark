@@ -67,6 +67,7 @@ const S = {
   treeSel: null,
   expanded: new Set(),
   mtime: 0,
+  fileEncoding: null,
   loading: false,
   outline: [],
   outlineKeys: [],
@@ -265,14 +266,15 @@ async function openPath(p) {
     if (!ok) return;
   }
   try {
-    const { content, mtime } = await window.ink.readFile(p);
+    const file = await window.ink.readFile(p);
     noteClosed(S.path, p);
     await clearDraft();
     S.path = p;
-    S.mtime = mtime || 0;
+    S.mtime = file.mtime || 0;
+    S.fileEncoding = fileEncodingLabel(file);
     ctx.docPath = p;
     S.loading = true;
-    setDoc(S.view, content);
+    setDoc(S.view, file.content);
     S.loading = false;
     S.dirty = false;
     setSourceMode(S.view, S.sourceMode);
@@ -297,6 +299,7 @@ async function newDocument() {
   await clearDraft();
   S.path = null;
   S.mtime = 0;
+  S.fileEncoding = null;
   S.dirty = false;
   ctx.docPath = S.folder || null;
   S.loading = true;
@@ -314,20 +317,22 @@ async function newDocument() {
 async function save({ saveAs = false } = {}) {
   const content = S.view.state.doc.toString();
   try {
+    let saved;
     if (!S.path || saveAs) {
-      const target = await window.ink.saveFileAs({
+      saved = await window.ink.saveFileAs({
         content,
         defaultPath: S.path || undefined,
       });
-      if (!target) return false;
-      S.path = target;
-      ctx.docPath = target;
-      const st = await window.ink.stat(target);
-      S.mtime = st ? st.mtime : 0;
-      if (!S.folder) setFolder(dirOf(target), { persist: false });
+      if (!saved) return false;
+      S.path = saved.path;
+      ctx.docPath = saved.path;
+      if (!S.folder) setFolder(dirOf(saved.path), { persist: false });
     } else {
-      S.mtime = (await window.ink.writeFile(S.path, content)) || S.mtime;
+      saved = await window.ink.writeFile(S.path, content);
     }
+    S.mtime = saved.mtime || S.mtime;
+    S.fileEncoding = fileEncodingLabel(saved);
+    updateEncodingStat();
   } catch (err) {
     await window.ink.info({ message: 'Could not save file', detail: String(err) });
     return false;
@@ -359,6 +364,7 @@ async function reloadFromDisk() {
   S.loading = false;
   view.scrollDOM.scrollTop = scroll;
   S.mtime = res.mtime || 0;
+  S.fileEncoding = fileEncodingLabel(res);
   S.dirty = false;
   syncDocMeta();
   updateTitle();
@@ -400,6 +406,8 @@ async function checkExternalChange(opts = {}) {
   }
   if (disk.content === S.view.state.doc.toString()) {
     S.mtime = disk.mtime || st.mtime;
+    S.fileEncoding = fileEncodingLabel(disk);
+    updateEncodingStat();
     S.dirty = false;
     await clearDraft();
     updateTitle();
@@ -517,7 +525,9 @@ async function restoreDraft(d) {
   await clearDraft();
   S.path = target;
   ctx.docPath = target || S.folder || null;
-  S.mtime = target ? (await window.ink.stat(target))?.mtime || 0 : 0;
+  const file = target ? await window.ink.readFile(target).catch(() => null) : null;
+  S.mtime = file?.mtime || (target ? (await window.ink.stat(target))?.mtime : 0) || 0;
+  S.fileEncoding = file ? fileEncodingLabel(file) : null;
   S.loading = true;
   setDoc(S.view, draft.content);
   S.loading = false;
@@ -549,7 +559,17 @@ function scheduleAutoSave() {
 // ---------------------------------------------------------------------------
 // status bar + outline
 // ---------------------------------------------------------------------------
+function fileEncodingLabel({ encoding, hasBom }) {
+  const label = encoding.toUpperCase();
+  return encoding === 'utf-8' && hasBom ? `${label} BOM` : label;
+}
+
+function updateEncodingStat() {
+  $('#stat-encoding').textContent = S.path ? (S.fileEncoding || '') : 'UTF-8';
+}
+
 function updateStatus() {
+  updateEncodingStat();
   const text = S.view.state.doc.toString();
   const { words, chars } = docStats(text);
   $('#stat-words').textContent = `${words} ${words === 1 ? 'word' : 'words'}`;
@@ -2822,13 +2842,21 @@ function flashMessage(text) {
 const commands = {
   'file:new': () => newDocument(),
   'file:open': async () => {
-    const res = await window.ink.openFileDialog(S.folder);
+    let res;
+    try {
+      res = await window.ink.openFileDialog(S.folder);
+    } catch (err) {
+      await window.ink.info({ message: 'Could not open file', detail: String(err) });
+      return;
+    }
     if (res) {
       if (S.dirty && !(await maybeSaveBeforeSwitch())) return;
       if (!S.folder) await setFolder(dirOf(res.path), { persist: false });
       noteClosed(S.path, res.path);
       await clearDraft();
       S.path = res.path;
+      S.mtime = res.mtime || 0;
+      S.fileEncoding = fileEncodingLabel(res);
       ctx.docPath = res.path;
       S.loading = true;
       setDoc(S.view, res.content);

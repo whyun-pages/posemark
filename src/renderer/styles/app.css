@@ -221,6 +221,7 @@ body.resizing { cursor: col-resize; user-select: none; }
   background: var(--bg-sidebar);
 }
 #statusbar .grow { flex: 1; }
+#stat-encoding { white-space: nowrap; }
 #statusbar .dot { color: var(--fg-faint); }
 .stat-muted { color: var(--fg-faint); }
 
