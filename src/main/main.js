@@ -14,6 +14,7 @@ const { UserThemes } = require('./user-themes');
 const images = require('./images');
 const { setPdfInfo } = require('./pdf-info');
 const searchReplace = require('./search-replace');
+const { decodeText, encodeText } = require('./text-encoding');
 const i18n = require('./i18n');
 
 const MD_EXT = ['md', 'markdown', 'mmd', 'mdown', 'mkd', 'mdwn', 'mdtxt', 'mdtext', 'txt', 'text', 'rmd'];
@@ -562,9 +563,9 @@ const mdFilters = [
 ];
 
 async function readTextFile(p) {
-  const content = await fsp.readFile(p, 'utf8');
+  const { text: content, encoding } = decodeText(await fsp.readFile(p));
   const st = await fsp.stat(p);
-  return { path: p, content, mtime: st.mtimeMs };
+  return { path: p, content, encoding, mtime: st.mtimeMs };
 }
 
 const isMarkdownName = (name) => MD_EXT.includes(path.extname(name).slice(1).toLowerCase());
@@ -747,7 +748,7 @@ function startWatch(entry, dir) {
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 async function searchFolder({ dir, query, caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
-  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null };
+  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, encodingSkipped: 0 };
   if (!dir || !query) return out;
   let source = regex ? query : escapeRegExp(query);
   if (wholeWord) source = `(?<![\\p{L}\\p{N}_])(?:${source})(?![\\p{L}\\p{N}_])`;
@@ -768,8 +769,9 @@ async function searchFolder({ dir, query, caseSensitive = false, wholeWord = fal
     try {
       const st = await fsp.stat(file);
       if (st.size > 8 * 1024 * 1024) continue;
-      text = await fsp.readFile(file, 'utf8');
-    } catch {
+      text = decodeText(await fsp.readFile(file)).text;
+    } catch (err) {
+      if (err.code === 'UNSUPPORTED_TEXT_ENCODING') out.encodingSkipped++;
       continue;
     }
     out.scanned++;
@@ -820,7 +822,7 @@ function backupPathFor(dir, stamp, file) {
 // replacement text for that hit and the context line as it would look after
 // replacing just that hit.
 async function previewReplaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
-  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, fingerprints: {} };
+  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, encodingSkipped: 0, fingerprints: {} };
   if (!dir || !query) return out;
   try {
     searchReplace.buildSearchRegExp({ query, caseSensitive, wholeWord, regex });
@@ -834,12 +836,15 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
       out.truncated = true;
       break;
     }
+    let original;
     let text;
     try {
       const st = await fsp.stat(file);
       if (st.size > 8 * 1024 * 1024) continue;
-      text = await fsp.readFile(file, 'utf8');
-    } catch {
+      original = await fsp.readFile(file);
+      text = decodeText(original).text;
+    } catch (err) {
+      if (err.code === 'UNSUPPORTED_TEXT_ENCODING') out.encodingSkipped++;
       continue;
     }
     out.scanned++;
@@ -847,10 +852,10 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
     const fileHits = searchReplace.previewReplace(text, { query, replacement, caseSensitive, wholeWord, regex, limit: maxResults - out.results.length + 1 });
     if (!fileHits.length) continue;
     out.files++;
-    // Fingerprint of the text this preview was computed from, so the apply
+    // Fingerprint of the bytes this preview was computed from, so the apply
     // step can refuse a file that changed after previewing (see
     // replaceInFolder). Only files with hits need one.
-    out.fingerprints[file] = searchReplace.contentFingerprint(text);
+    out.fingerprints[file] = searchReplace.contentFingerprint(original);
     const remaining = maxResults - out.results.length;
     for (const h of fileHits.slice(0, remaining)) out.results.push({ path: file, ...h });
     if (fileHits.length > remaining) {
@@ -882,7 +887,11 @@ async function saveNote(file, content) {
     return path.resolve(file);
   });
   return withNoteWriteLock(key, async () => {
-    await fsp.writeFile(file, content, 'utf8');
+    const original = await fsp.readFile(file).catch((err) => {
+      if (err.code !== 'ENOENT') throw err;
+      return null;
+    });
+    await fsp.writeFile(file, encodeText(content, original ? decodeText(original) : undefined));
     return (await fsp.stat(file)).mtimeMs;
   });
 }
@@ -966,14 +975,21 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     } catch {
       continue;
     }
-    const text = original.toString('utf8');
+    let decoded;
+    try {
+      decoded = decodeText(original);
+    } catch (err) {
+      out.skipped.push({ path: file, reason: err.message });
+      continue;
+    }
+    const { text } = decoded;
     // Whole-file fingerprint check, before anything is written: matching by
     // line:col (and even by the text at that coordinate) cannot see an
     // identical line inserted before a hit, which shifts every later hit
     // down a line. If the file changed at all since previewing, skip the
     // whole file and tell the user to re-preview it.
     const wanted = wantedByFile.get(file) || null;
-    if (wanted && fingerprints && fingerprints[file] && searchReplace.contentFingerprint(text) !== fingerprints[file]) {
+    if (wanted && fingerprints && fingerprints[file] && searchReplace.contentFingerprint(original) !== fingerprints[file]) {
       out.staleFiles.push(file);
       out.selectedNotFound += wanted.size;
       continue;
@@ -999,7 +1015,7 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     // on failure is always one this run created itself.
     const tmp = `${target}.${process.pid}-${crypto.randomBytes(6).toString('hex')}.tmp`;
     try {
-      await fsp.writeFile(tmp, next, { encoding: 'utf8', flag: 'wx', mode: st.mode & 0o777 });
+      await fsp.writeFile(tmp, encodeText(next, decoded), { flag: 'wx', mode: st.mode & 0o777 });
       await fsp.chmod(tmp, st.mode & 0o7777);
       if (!(await replaceIfUnchanged(file, target, original, tmp, st))) {
         await fsp.unlink(tmp).catch(() => {});

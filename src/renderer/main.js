@@ -313,19 +313,24 @@ async function newDocument() {
 
 async function save({ saveAs = false } = {}) {
   const content = S.view.state.doc.toString();
-  if (!S.path || saveAs) {
-    const target = await window.ink.saveFileAs({
-      content,
-      defaultPath: S.path || undefined,
-    });
-    if (!target) return false;
-    S.path = target;
-    ctx.docPath = target;
-    const st = await window.ink.stat(target);
-    S.mtime = st ? st.mtime : 0;
-    if (!S.folder) setFolder(dirOf(target), { persist: false });
-  } else {
-    S.mtime = (await window.ink.writeFile(S.path, content)) || S.mtime;
+  try {
+    if (!S.path || saveAs) {
+      const target = await window.ink.saveFileAs({
+        content,
+        defaultPath: S.path || undefined,
+      });
+      if (!target) return false;
+      S.path = target;
+      ctx.docPath = target;
+      const st = await window.ink.stat(target);
+      S.mtime = st ? st.mtime : 0;
+      if (!S.folder) setFolder(dirOf(target), { persist: false });
+    } else {
+      S.mtime = (await window.ink.writeFile(S.path, content)) || S.mtime;
+    }
+  } catch (err) {
+    await window.ink.info({ message: 'Could not save file', detail: String(err) });
+    return false;
   }
   S.dirty = false;
   await clearDraft();
@@ -1587,6 +1592,10 @@ function renderSearchResults(res) {
   summary.textContent = n
     ? `${n}${res.truncated ? '+' : ''} result${n === 1 ? '' : 's'} in ${res.files} file${res.files === 1 ? '' : 's'}`
     : `No results in ${res.scanned} file${res.scanned === 1 ? '' : 's'}`;
+  if (res.encodingSkipped) {
+    const n = res.encodingSkipped;
+    summary.textContent += ` · ${n} file${n === 1 ? '' : 's'} skipped due to unsupported encoding`;
+  }
   if (!n) return;
   let currentFile = null;
   let group = null;
@@ -1690,6 +1699,10 @@ function renderReplacePreview(res) {
   summary.textContent = n
     ? `${n}${res.truncated ? '+' : ''} replacement${n === 1 ? '' : 's'} in ${res.files} file${res.files === 1 ? '' : 's'} — uncheck any to skip, then Replace selected or Replace all${res.truncated ? '. Only the first 2,000 hits are shown; Replace all replaces just these' : ''}`
     : `No matches in ${res.scanned} file${res.scanned === 1 ? '' : 's'} — nothing to replace`;
+  if (res.encodingSkipped) {
+    const n = res.encodingSkipped;
+    summary.textContent += ` · ${n} file${n === 1 ? '' : 's'} skipped due to unsupported encoding`;
+  }
   if (!n) {
     setReplaceMode(false);
     return;
