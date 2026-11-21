@@ -54,15 +54,9 @@ MSIX 包安装在 `C:\Program Files\WindowsApps\<包全名>\`，该目录对应�
 | `publisherDisplayName` | Package/Properties/PublisherDisplayName | `yunnysunny`（开发者账号显示名） |
 | `displayName` | 已保留的应用名称 | `Posemark`（必须与保留名称完全一致） |
 
-## 2. `build.appx` 配置（以后加入 `package.json`）
+## 2. 商店构建配置
 
-在 `build.win.target` 中加入一项：
-
-```json
-{ "target": "appx", "arch": ["x64"] }
-```
-
-并在 `build` 下新增：
+基础标识保存在 `package.json` 的 `build.appx` 中，商店专用配置 `build/appx/builder.cjs` 在其上追加原生扩展编译、清单钩子和包校验。商店包继续作为独立目标，不加入普通安装包的默认 `win.target`。基础字段示意如下，实际标识以 Partner Center 和当前配置为准：
 
 ```json
 "appx": {
@@ -87,12 +81,11 @@ MSIX 包安装在 `C:\Program Files\WindowsApps\<包全名>\`，该目录对应�
 - `backgroundColor`：磁贴/启动背景色。推荐 `transparent`（Win10/11 现行设计），或与 Logo 底色一致的 `#RRGGBB`。
 - `languages`：包声明支持的语言，决定 Partner Center 自动列出的商店列表语言；第一个视为默认语言。
 - 版本号：electron-builder 会把 `0.1.0` 转成 `0.1.0.0`。**商店要求第 4 段为 0**，保持默认（不要开启 `setBuildNumber`）。每次提交版本号必须大于上一次。
-- `fileAssociations`（`.md` / `.markdown`）已在 `build` 顶层配置，electron-builder 会生成 `uap:FileTypeAssociation`；双击 `.md` 时文件路径以参数传入，现有的 `fileArg(process.argv)` 可以处理。
+- `fileAssociations`（`.md` / `.markdown`）已在 `build` 顶层配置，electron-builder 会生成 `uap:FileTypeAssociation`；双击 `.md` 时文件路径以参数传入，现有的 `parseCli(process.argv)` 可以处理。
 - 应用名在 `package.json` 里是 `productName: "Posemark"`，与保留名一致即可。
 - 商店提交**不需要代码签名证书**：上传的 `.appx/.msix` 由 Microsoft 重新签名。只有在本机侧载测试时才需要签名，见第 4 节。
 
-建议另加脚本（示例，同样以后再改）：`"dist:store": "node build.mjs && electron-builder --win appx --publish never"`，
-不要把 appx 放进 GitHub Release 的默认产物（未签名的 appx 用户无法直接安装）。
+使用现有的 `pnpm dist:store` 脚本构建。不要把 appx 放进 GitHub Release 的默认产物（未签名的 appx 用户无法直接安装）。
 
 ## 3. Logo 资源（放在 `build/appx/`）
 
@@ -129,7 +122,7 @@ electron-builder 从 `buildResources`（默认 `build/`）下的 `appx/` 目录�
 
 ```bash
 pnpm install
-pnpm exec electron-builder --win appx --x64 --publish never   # 产物：release/Posemark-0.1.0-x64.appx
+pnpm dist:store   # 产物：release/Posemark-<version>-x64.appx
 ```
 
 - 构建在 Windows 上进行；electron-builder 会使用其 `winCodeSign` 缓存中的 `makeappx.exe`，若失败请安装 Windows 10/11 SDK。
@@ -170,7 +163,7 @@ pnpm exec electron-builder --win appx --x64 --publish never   # 产物：release
 | 渲染进程拿到的 `userData` 路径 | `:1366` 把 `app.getPath('userData')` 交给渲染进程 | 显示的路径与资源管理器中实际位置不一致 | 低风险，同上处理 |
 | 单实例 / 第二实例 | `requestSingleInstanceLock` + `second-instance`（`:1424-1440`） | MSIX 下正常工作 | OK |
 | 文件关联 | `build.fileAssociations` md/markdown | 由清单声明，Windows 11 会在“打开方式”中列出，不能静默设为默认 | OK（用户需自行设为默认） |
-| 资源管理器右键菜单 | `build/installer.nsh` `customInstall` 写 `Software\Classes\*` / `Directory` / `Directory\Background` 下的 `shell\Posemark` | **只在 NSIS 安装版存在**：MSIX 清单里没有 `windows.fileExplorerContextMenus` 扩展，而且打包进程对 `Software\Classes` 的写入会被虚拟化，资源管理器读不到 | 商店版没有这两项（文件关联带来的“打开方式”仍在），要保留须做原生 COM，见 §5.1 |
+| 资源管理器右键菜单 | NSIS 使用注册表 verb；商店包使用原生 `IExplorerCommand` DLL | 商店构建自动编译并通过包清单注册文件、文件夹与文件夹空白处菜单 | 构建及原生调用可自动验证；安装、升级与卸载后的 Explorer 行为需在目标系统验收，见 §5.1 |
 | 协议注册 | 未使用 `app.setAsDefaultProtocolClient` | — | OK |
 | 自动更新 | 未使用 `autoUpdater` / `electron-updater` | 由商店负责更新 | OK；注意 GitHub Release 版与商店版并存时两者 userData 不共享 |
 | 开机自启 | 未使用 `setLoginItemSettings` | — | OK，保持 `addAutoLaunchExtension: false` |
@@ -182,16 +175,17 @@ pnpm exec electron-builder --win appx --x64 --publish never   # 产物：release
 
 ### 5.1 Windows 11 右键菜单（`windows.fileExplorerContextMenus`）
 
-NSIS 版的两个菜单项（文件上“用 Posemark 打开”、文件夹与文件夹空白处“用 Posemark 打开文件夹”）靠注册表 verb 实现，
-MSIX **无法**用同样方式做到。若商店版要这个功能，按 Microsoft Learn《Add a File Explorer context menu command to a packaged desktop app》需要：
+商店版通过 `build/shell/PosemarkShell.cpp` 实现原生 `IExplorerCommand`，提供文件上的“用 Posemark 打开”和文件夹、空白处的“用 Posemark 打开文件夹”。DLL 内嵌图标及中英文字符串，菜单文字遵循 Windows 显示语言；`GetState` 在不允许耗时的调用中返回 `E_PENDING`，交由 Shell 后台解析路径。文件与文件夹从选择项读取文件系统路径，空白处经 `IObjectWithSite` 和当前 Shell 视图读取目录；不支持的虚拟目录隐藏菜单。
 
-1. 一个实现 `IExplorerCommand` 的**原生 COM DLL**（C++，Electron 本身做不了；`Invoke` 里 `ShellExecute` 启动 `Posemark.exe` 并把选中项作为参数，正好复用 `src/main/cli-args.js` 已支持的文件/文件夹参数）；
-2. 清单里 `com:Extension Category="windows.comServer"` → `com:SurrogateServer` → `com:Class Id=<CLSID> Path=<dll>`，`ThreadingModel="STA"`；
-3. `desktop4:Extension Category="windows.fileExplorerContextMenus"` → `desktop4:FileExplorerContextMenus` → `desktop5:ItemType`（`*` / `Directory` / `Directory\Background`，可多次）→ `desktop5:Verb Id Clsid=<同一 CLSID>`；
-4. `Package` 根元素补齐 `xmlns:com` / `desktop4` / `desktop5` 并加入 `IgnorableNamespaces`。
+文件命令的固定 CLSID 为 `A07663E5-DF6F-44EA-9106-9D9B83B405AD`，目录命令为 `53BFF47C-5346-4B6A-B9C4-554998C0B5AC`。`build/appx/extensions.xml` 使用 `com:SurrogateServer` 注册包内 `app\shell\PosemarkShell.dll`，线程模型为 `STA`，再以 `desktop5:ItemType` 的 `*`、`Directory`、`Directory\Background` 注册三个入口。`desktop5` 所需最低系统版本为 Windows 10 1809，因此商店专用构建配置显式设置 `minVersion: 10.0.17763.0`。
 
-代价与风险：多一个需要随包分发、按架构编译的 DLL（CI 里要有 MSVC 步骤）；electron-builder 生成的清单默认不含 com/desktop4/desktop5 命名空间，`customExtensionsPath` 只能追加 `<Extensions>` 内容，命名空间和处理可能得改生成后的清单或在构建里做后处理（未验证）。
-DLL 缺失或注册不一致时菜单不出现，且需要重启资源管理器才刷新。**结论：v1 先不带，商店版靠文件关联的“打开方式”；要加再单独立项。**
+本机安装 Visual Studio C++ Build Tools（Desktop development with C++）及 Windows SDK 后运行 `pnpm dist:store`。商店专用配置 `build/appx/builder.cjs` 在 `beforePack` 自动发现 MSVC，按打包架构编译静态链接 C++ 运行库的 DLL，并通过 `win.extraFiles` 放入应用输出。`appxManifestCreated` 钩子使用 XML 解析器合并根节点命名空间和 `IgnorableNamespaces`，执行顺序在 MakePri、MakeAppx 和签名前。Release 工作流使用同一配置，不能省略 `--config build/appx/builder.cjs`。普通 NSIS/zip 构建不需要原生扩展编译工具。
+
+`Invoke` 从 DLL 自身位置找到包内 `Posemark.exe`，直接通过 `CreateProcessW` 传入 `--` 和正确转义的绝对路径，不依赖 PATH、命令行别名或 `cmd.exe`。多选一次传入全部路径，超过 Windows 命令行长度限制时返回错误。应用已启动时通过现有单实例机制转发给主进程，并遵循每个路径创建新窗口的行为。
+
+`pnpm test:shell` 编译并直接加载实际 DLL，检查 COM 创建和生命周期、中英文菜单、图标、文件多选、目录、无选择项的空白处调用、虚拟目录及 Windows 参数转义。测试在 `_cache` 的独立目录用接收参数的替身程序验证启动，不安装程序包或改动现有商店应用。Windows CI 自动执行这项测试。AppX 构建完成后自动检查 ZIP 内的清单、两个 CLSID、三个上下文、DLL 架构及与当前编译结果一致的 SHA-256，同时确认文件关联与执行别名仍在。
+
+打包成功不能替代目标系统安装验收。发布前还应在干净 Windows 11 与所支持的 Windows 10 环境侧载签名包，验证实际菜单显示、冷启动和已有实例、升级、卸载及与 NSIS 共存；如安装或更新后菜单未刷新，重启资源管理器或注销后重试。本机构建不自动替换已安装的商店版本，WACK 和商店审核另行执行。实现依据为 [Microsoft Learn 官方集成文档](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/integrate-packaged-app-with-file-explorer)。
 
 ## 6. Windows 应用认证工具包（WACK）
 
@@ -209,5 +203,5 @@ DLL 缺失或注册不一致时菜单不出现，且需要重启资源管理器�
 
 ## 7. CI（可选，后续）
 
-在 `.github/workflows` 的 release 工作流中可另起一个 Windows job 运行 `electron-builder --win appx`，把 `.appx` 作为构建产物上传（不发布到 Release），再手动上传到 Partner Center；
+`.github/workflows/release.yml` 已有独立的 Windows `store` 任务，使用 `--config build/appx/builder.cjs` 构建并校验 `.appx`，将其作为构建产物上传（不发布到 Release），再手动上传到 Partner Center；
 或使用 Microsoft Store Submission API / `msstore` CLI（`msstore publish`）自动提交，需要在 Partner Center 中创建 Azure AD 应用并配置 tenantId/clientId/secret。

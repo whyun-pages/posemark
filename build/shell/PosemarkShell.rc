@@ -1,0 +1,18 @@
+#pragma code_page(65001)
+#include <windows.h>
+
+101 ICON "../icon.ico"
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+STRINGTABLE
+BEGIN
+  201 "Open with Posemark"
+  202 "Open Folder with Posemark"
+END
+
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+STRINGTABLE
+BEGIN
+  201 "用 Posemark 打开"
+  202 "用 Posemark 打开文件夹"
+END

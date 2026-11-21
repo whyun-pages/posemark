@@ -1,0 +1,4 @@
+LIBRARY PosemarkShell
+EXPORTS
+  DllGetClassObject PRIVATE
+  DllCanUnloadNow PRIVATE

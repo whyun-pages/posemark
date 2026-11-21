@@ -13,3 +13,34 @@
     <uap5:ExecutionAlias Alias="posemark.exe" />
   </uap5:AppExecutionAlias>
 </uap5:Extension>
+
+<!-- Declare namespaces locally so this fragment can be parsed before the
+     appxManifestCreated hook also declares them on Package. Stable CLSIDs are
+     shared with build/shell/commands.h. -->
+<com:Extension xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
+    Category="windows.comServer">
+  <com:ComServer>
+    <com:SurrogateServer DisplayName="Posemark Shell Commands">
+      <com:Class Id="A07663E5-DF6F-44EA-9106-9D9B83B405AD"
+          Path="app\shell\PosemarkShell.dll" ThreadingModel="STA" />
+      <com:Class Id="53BFF47C-5346-4B6A-B9C4-554998C0B5AC"
+          Path="app\shell\PosemarkShell.dll" ThreadingModel="STA" />
+    </com:SurrogateServer>
+  </com:ComServer>
+</com:Extension>
+
+<desktop4:Extension xmlns:desktop4="http://schemas.microsoft.com/appx/manifest/desktop/windows10/4"
+    xmlns:desktop5="http://schemas.microsoft.com/appx/manifest/desktop/windows10/5"
+    Category="windows.fileExplorerContextMenus">
+  <desktop4:FileExplorerContextMenus>
+    <desktop5:ItemType Type="*">
+      <desktop5:Verb Id="PosemarkOpenFile" Clsid="A07663E5-DF6F-44EA-9106-9D9B83B405AD" />
+    </desktop5:ItemType>
+    <desktop5:ItemType Type="Directory">
+      <desktop5:Verb Id="PosemarkOpenFolder" Clsid="53BFF47C-5346-4B6A-B9C4-554998C0B5AC" />
+    </desktop5:ItemType>
+    <desktop5:ItemType Type="Directory\Background">
+      <desktop5:Verb Id="PosemarkOpenFolderBackground" Clsid="53BFF47C-5346-4B6A-B9C4-554998C0B5AC" />
+    </desktop5:ItemType>
+  </desktop4:FileExplorerContextMenus>
+</desktop4:Extension>

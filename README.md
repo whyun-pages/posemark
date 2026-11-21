@@ -34,6 +34,7 @@ Then drop the official `electron-v<version>-win32-x64.zip` (from
 ```bash
 pnpm test            # unit tests (node:test): Markdown renderer, paths, images, math, diagrams, outline, word count, drafts, user themes
 pnpm test:website    # build and verify the website export UI and portable offline output
+pnpm test:shell      # Windows: compile and smoke-test the native Store context-menu extension
 pnpm dist            # package an installer for the current OS into release/
 pnpm dist:store      # Microsoft Store package (MSIX/.appx) into release/
 pnpm icons           # regenerate every icon from build/icon.svg
@@ -52,11 +53,20 @@ builds the Microsoft Store package (`.appx`) and keeps it as a workflow artifact
 Center (which signs it); its package identity comes from the repository variables
 `APPX_IDENTITY_NAME`, `APPX_PUBLISHER` and `APPX_PUBLISHER_DISPLAY_NAME`.
 
-The NSIS installer also adds two Explorer context menu entries, "Open with Posemark" on files and
-"Open Folder with Posemark" on folders and folder backgrounds (labels in Chinese when the installer
-runs in Chinese). They are registry keys under `Software\Classes` in the hive the install went to
-(`build/installer.nsh`) and are removed by the uninstaller. A folder passed on the command line opens
-in the sidebar, a file opens in the editor; the portable zip and the Store package get no menu entries.
+The NSIS installer and Microsoft Store package add "Open with Posemark" on files and
+"Open Folder with Posemark" on folders and folder backgrounds. The Store extension follows the
+Windows display language (English or Simplified Chinese) and supports the modern Windows 11
+context menu. A folder opens in the sidebar and a file opens in the editor; a running instance
+receives the request and opens a new window for each path. The portable zip adds no menu entries.
+If Explorer has not refreshed its menu after installing or updating the Store app, restart Explorer
+or sign out and back in.
+
+Building the Store package requires Windows, Visual Studio C++ Build Tools and a Windows SDK.
+`pnpm dist:store` automatically compiles the native extension, adds its package registrations and
+checks the finished AppX for matching DLL architecture, COM registrations and existing file
+associations. `pnpm test:shell` tests the actual DLL without installing a package or changing the
+installed app. Store menus require Windows 10 version 1809 or later; the native extension must
+match the target architecture.
 
 Running Electron **45.0.0** (Chromium 156, Node 22).
 
@@ -385,37 +395,6 @@ syntax tree / visible line texts / block widgets, and `POSEMARK_SCROLL=<px>` scr
 `POSEMARK_JS=<script>` runs renderer code before the capture, `POSEMARK_CLIP=<script>` runs code that
 returns `{ x, y, width, height }` (CSS px) so only that region is captured, and `POSEMARK_TYPE=<text>`
 types real keystrokes into the editor (that is how the smart-typography input handler is verified).
-
-## Layout
-
-```
-src/main/        main process: windows, menu, IPC, config store, PDF pipeline
-src/main/menu.js application menu (the Typora-like menu tree)
-src/main/drafts.js      unsaved-draft backups under userData/drafts
-src/main/user-themes.js user theme folder (base.user.css, <theme>.user.css, whole themes)
-src/main/i18n.js        UI translation (shared with the renderer); locales/zh-CN.js is the dictionary
-src/main/pdf-info.js    PDF document properties (incremental update of the Info dictionary)
-src/main/images.js      image files: import / copy / move / download, uploaders (PicGo-Core, PicList, command)
-src/renderer/    renderer bundle
-  main.js        app shell: files, sidebar, outline, status bar, command dispatch, export
-  editor.js      CodeMirror 6 setup + paragraph/format commands
-  live-preview.js decorations: hide marks off-caret, replace blocks with widgets
-  blocks.js      block scanner + block widgets (code, table, math, diagram, image, task)
-  markdown.js    markdown-it instance for export / copy-as-HTML / table rendering
-  export-settings.js export options: front matter overrides, ${var} expansion, PDF page / header / footer, outline
-  wechat.js      copy-for-WeChat: inline style profile + rasteriser for maths and diagrams
-  syntax.js      highlight.js wrapper
-  paths.js       path helpers: file:// resolution, typora-root-url, Markdown image paths, <img> parsing
-  outline.js     outline tree / filter / current-heading helpers
-  math.js        KaTeX options (mhchem, physics macros), equation numbering, \label / \ref
-  diagrams.js    sequence (js-sequence) and flow (flowchart.js) → Mermaid translation
-  wordcount.js   word count panel figures and reading time
-  styles/        app.css, editor.css, content.css (export), themes/*.css
-build/           app icon: icon.svg (source) → `pnpm icons` → icon.png / icon.ico / appx/*.png
-samples/demo.md  a document that exercises everything
-website/         static promo site (home, docs, privacy policy); see website/README.md
-docs/            screenshots
-```
 
 ## Keyboard shortcuts
 
