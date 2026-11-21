@@ -745,16 +745,13 @@ function startWatch(entry, dir) {
 // ---------------------------------------------------------------------------
 // search across the folder (Ctrl+Shift+F)
 // ---------------------------------------------------------------------------
-const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 async function searchFolder({ dir, query, caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
   const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, encodingSkipped: 0 };
   if (!dir || !query) return out;
-  let source = regex ? query : escapeRegExp(query);
-  if (wholeWord) source = `(?<![\\p{L}\\p{N}_])(?:${source})(?![\\p{L}\\p{N}_])`;
+  const options = { query, caseSensitive, wholeWord, regex };
   let re;
   try {
-    re = new RegExp(source, `gu${caseSensitive ? '' : 'i'}`);
+    re = searchReplace.buildSearchRegExp(options);
   } catch (err) {
     out.error = err.message;
     return out;
@@ -775,30 +772,14 @@ async function searchFolder({ dir, query, caseSensitive = false, wholeWord = fal
       continue;
     }
     out.scanned++;
-    if (!re.test(text)) continue;
+    const remaining = maxResults - out.results.length;
+    const hits = searchReplace.findMatches(text, { ...options, limit: remaining + 1 }, re);
+    if (!hits.length) continue;
     out.files++;
-    const lines = text.split(/\r?\n/);
-    for (let i = 0; i < lines.length && out.results.length < maxResults; i++) {
-      const line = lines[i];
-      re.lastIndex = 0;
-      let m;
-      while ((m = re.exec(line))) {
-        if (m[0] === '') {
-          re.lastIndex += line.codePointAt(m.index) > 0xffff ? 2 : 1;
-          continue;
-        }
-        const from = Math.max(0, m.index - 40);
-        out.results.push({
-          path: file,
-          line: i + 1,
-          col: m.index,
-          len: m[0].length,
-          before: (from > 0 ? '…' : '') + line.slice(from, m.index),
-          match: m[0],
-          after: line.slice(m.index + m[0].length, m.index + m[0].length + 80),
-        });
-        if (out.results.length >= maxResults) break;
-      }
+    for (const hit of hits.slice(0, remaining)) out.results.push({ path: file, ...hit });
+    if (hits.length > remaining) {
+      out.truncated = true;
+      break;
     }
   }
   return out;

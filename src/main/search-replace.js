@@ -10,9 +10,8 @@
 // $'), implemented here explicitly so a single hit can be previewed and so only
 // the hits the user checked are applied.
 //
-// Matches are found by scanning the whole text (not line by line) so preview and
-// apply always agree; empty matches are skipped, exactly like searchFolder does
-// (a pattern such as `a*` must not insert the replacement everywhere).
+// Search, preview and apply match each line independently. Empty matches
+// are skipped so patterns like a* do not insert text at every position.
 
 const crypto = require('crypto');
 
@@ -48,7 +47,7 @@ const hitKey = (hit) => `${hit.line}:${hit.col}`;
 // Two-digit tokens fall back like the native implementation: $10 with a
 // single group means $1 followed by a literal '0' (and $11 means $1 + '1'),
 // while $99 with one group stays literal because 9 is not a group either.
-function expandReplacement(replacement, match) {
+function expandReplacement(replacement, match, input = match.input, index = match.index) {
   const groupCount = match.length - 1;
   const tokens = match.groups
     ? /\$(\$|&|`|'|<[^>]*>|\d{1,2})/g
@@ -56,8 +55,8 @@ function expandReplacement(replacement, match) {
   return String(replacement).replace(tokens, (all, token) => {
     if (token === '$') return '$';
     if (token === '&') return match[0];
-    if (token === '`') return match.input.slice(0, match.index);
-    if (token === "'") return match.input.slice(match.index + match[0].length);
+    if (token === '`') return input.slice(0, index);
+    if (token === "'") return input.slice(index + match[0].length);
     if (token.startsWith('<')) {
       return match.groups[token.slice(1, -1)] ?? '';
     }
@@ -78,80 +77,63 @@ function expandReplacement(replacement, match) {
   });
 }
 
-// Matches arrive in increasing index order, so line/col can be tracked by
-// scanning forward once instead of rescanning the whole prefix per hit —
-// the old per-hit rescan was quadratic on files with many matches (a 160 KB
-// file with 40,000 hits took ~8 s to preview).
-function createLineTracker(text) {
+// Scan one LF or CRLF-delimited line at a time. Keep the absolute offset
+// for writing replacements without changing the original line endings.
+function* matchesByLine(text, re) {
+  let start = 0;
   let line = 1;
-  let lineStart = 0;
-  const nextLineEnd = (start) => {
+  while (start < text.length) {
     const newline = text.indexOf('\n', start);
-    return newline === -1 ? text.length : newline;
-  };
-  let lineEnd = nextLineEnd(lineStart);
-  return (index) => {
-    while (index > lineEnd) {
-      line++;
-      lineStart = lineEnd + 1;
-      lineEnd = nextLineEnd(lineStart);
+    const end = newline === -1 ? text.length : newline;
+    const contentEnd = newline !== -1 && text[end - 1] === '\r' ? end - 1 : end;
+    const lineText = text.slice(start, contentEnd);
+    re.lastIndex = 0;
+    let match;
+    while ((match = re.exec(lineText)) !== null) {
+      const col = match.index;
+      if (match[0] === '') {
+        re.lastIndex += lineText.codePointAt(col) > 0xffff ? 2 : 1;
+        continue;
+      }
+      yield { line, col, index: start + col, match };
     }
-    const end = text[lineEnd - 1] === '\r' ? lineEnd - 1 : lineEnd;
-    return { line, col: index - lineStart, start: lineStart, end };
-  };
+    start = end + 1;
+    line++;
+  }
 }
 
-function matchContext(text, match, position) {
-  const { line, col, start, end } = position(match.index);
-  const from = Math.max(start, match.index - 40);
-  const afterStart = match.index + match[0].length;
+function matchContext({ line, col, match }) {
+  const from = Math.max(0, col - 40);
+  const afterStart = col + match[0].length;
   return {
     line,
     col,
     len: match[0].length,
     match: match[0],
-    before: (from > start ? '…' : '') + text.slice(from, Math.min(match.index, end)),
-    after: text.slice(afterStart, Math.min(afterStart + 80, end)),
+    before: (from > 0 ? '…' : '') + match.input.slice(from, col),
+    after: match.input.slice(afterStart, afterStart + 80),
   };
 }
 
-// Every non-empty match in `text`, in order. Each hit carries the same
-// before/match/after context searchFolder() shows (up to 40 chars before and
-// 80 after the match, within its line). `opts.limit` stops after that many
-// hits instead of scanning the whole file.
-function findMatches(text, opts) {
-  const re = buildSearchRegExp(opts);
+// Stop at the result budget without splitting or scanning the rest of the file.
+function findMatches(text, opts, re = buildSearchRegExp(opts)) {
   const limit = opts.limit ?? Infinity;
-  const position = createLineTracker(text);
   const hits = [];
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    if (m[0] === '') {
-      re.lastIndex += text.codePointAt(m.index) > 0xffff ? 2 : 1;
-      continue;
-    }
-    hits.push(matchContext(text, m, position));
+  if (limit <= 0) return hits;
+  for (const match of matchesByLine(text, re)) {
+    hits.push(matchContext(match));
     if (hits.length >= limit) break;
   }
   return hits;
 }
 
-// Preview: the search hits plus, per hit, the replacement text for that hit and
-// the context line as it would look after replacing just that hit.
-// `opts.limit` (the caller's remaining result budget) stops the scan early —
-// a preview capped at 2,000 hits must not pay for all 40,000 of them first.
 function previewReplace(text, { replacement = '', limit = Infinity, ...opts }) {
   const re = buildSearchRegExp(opts);
-  const position = createLineTracker(text);
   const hits = [];
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    if (m[0] === '') {
-      re.lastIndex += text.codePointAt(m.index) > 0xffff ? 2 : 1;
-      continue;
-    }
-    const hit = matchContext(text, m, position);
-    const replaced = expandReplacement(replacement, m);
+  if (limit <= 0) return hits;
+  for (const match of matchesByLine(text, re)) {
+    const hit = matchContext(match);
+    const replaced = expandReplacement(replacement, match.match, text, match.index);
     hits.push({
       ...hit,
       replacement: replaced,
@@ -176,27 +158,22 @@ function applyReplaceText(text, { replacement = '', ...opts }, selected) {
   const wanted = selected === undefined || selected === null ? null
     : (selected instanceof Map ? selected : new Set(selected));
   if (wanted?.size === 0) return { text, count: 0 };
-  const position = wanted ? createLineTracker(text) : null;
   const spans = [];
   let resolved = 0;
-  let m;
-  while ((m = re.exec(text)) !== null) {
-    if (m[0] === '') {
-      re.lastIndex += text.codePointAt(m.index) > 0xffff ? 2 : 1;
-      continue;
-    }
+  for (const hit of matchesByLine(text, re)) {
+    const { match, index } = hit;
     if (wanted) {
-      const key = hitKey(position(m.index));
+      const key = hitKey(hit);
       if (!wanted.has(key)) continue;
       resolved++;
       const expected = wanted instanceof Map ? wanted.get(key) : undefined;
-      if (expected === undefined || m[0] === expected) {
-        spans.push({ index: m.index, len: m[0].length, replacement: expandReplacement(replacement, m) });
+      if (expected !== undefined && match[0] !== expected) {
+        if (resolved === wanted.size) break;
+        continue;
       }
-      if (resolved === wanted.size) break;
-    } else {
-      spans.push({ index: m.index, len: m[0].length, replacement: expandReplacement(replacement, m) });
     }
+    spans.push({ index, len: match[0].length, replacement: expandReplacement(replacement, match, text, index) });
+    if (wanted && resolved === wanted.size) break;
   }
   if (!spans.length) return { text, count: 0 };
   let out = '';

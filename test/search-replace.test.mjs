@@ -224,3 +224,24 @@ test('skipping empty regex matches advances past a whole Unicode character', () 
   assert.equal(previewReplace(text, opts)[0].col, 2);
   assert.equal(applyReplaceText(text, { ...opts, replacement: 'bar' }).text, '😊bar');
 });
+
+test('folder search, preview and apply use the same line anchors on LF and CRLF', () => {
+  const text = 'foo\r\nfoo\nother\r\nfoo';
+  const opts = { query: '^(foo)$', regex: true, replacement: '[$1]' };
+  const hits = findMatches(text, opts);
+  assert.deepEqual(hits.map(hitKey), ['1:0', '2:0', '4:0']);
+  const preview = previewReplace(text, opts);
+  assert.deepEqual(preview.map(hitKey), hits.map(hitKey));
+  assert.deepEqual(preview.map((hit) => hit.replacement), ['[foo]', '[foo]', '[foo]']);
+  assert.equal(applyReplaceText(text, opts).text, '[foo]\r\n[foo]\nother\r\n[foo]');
+  assert.equal(applyReplaceText(text, opts, ['2:0']).text, 'foo\r\n[foo]\nother\r\nfoo');
+  assert.equal(findMatches('foo\nfoo', { query: 'foo$', regex: true }).length, 2);
+  assert.equal(previewReplace('foo\nfoo', { query: 'foo\\s+foo', regex: true }).length, 0);
+});
+
+test('replacement prefix and suffix still refer to the entire file', () => {
+  const text = 'before\nfoo\nafter';
+  const opts = { query: '^foo$', regex: true, replacement: "$`|$'" };
+  assert.equal(previewReplace(text, opts)[0].replacement, 'before\n|\nafter');
+  assert.equal(applyReplaceText(text, opts).text, 'before\nbefore\n|\nafter\nafter');
+});
