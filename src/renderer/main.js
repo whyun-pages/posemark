@@ -363,7 +363,12 @@ async function reloadFromDisk() {
 }
 
 let externalPrompt = false; // one "reload or keep" dialog at a time
-async function checkExternalChange() {
+// `opts.force` is for changes this app made itself (folder replace): a clean
+// open document is reloaded even when the user turned off reloading for
+// external changes, because the new content is ours and the old buffer would
+// otherwise silently overwrite it on the next save. A dirty buffer still goes
+// through the conflict prompt below, forced or not.
+async function checkExternalChange(opts = {}) {
   if (!S.path || externalPrompt) return;
   const st = await window.ink.stat(S.path);
   if (!st) {
@@ -371,7 +376,7 @@ async function checkExternalChange() {
     return;
   }
   if (!S.mtime || Math.abs(st.mtime - S.mtime) < 1) return;
-  if (S.config.reloadOnExternalChange === false) {
+  if (S.config.reloadOnExternalChange === false && !opts.force) {
     S.mtime = st.mtime;
     flashMessage(`${basename(S.path)} changed on disk — your unsaved edits are kept`);
     return;
@@ -1639,6 +1644,9 @@ async function runReplacePreview() {
     renderSearchResults(res);
     return;
   }
+  // Snapshot the replacement with the preview: executing later must use the
+  // text the preview showed, not whatever the field holds by then.
+  res.replacement = replacement;
   S.search.replacePreview = res;
   S.search.replaceSelection = new Set(res.results.map(replaceHitKey));
   renderReplacePreview(res);
@@ -1651,7 +1659,7 @@ function renderReplacePreview(res) {
   setReplaceMode(true);
   const n = res.results.length;
   summary.textContent = n
-    ? `${n}${res.truncated ? '+' : ''} replacement${n === 1 ? '' : 's'} in ${res.files} file${res.files === 1 ? '' : 's'} — uncheck any to skip, then Replace selected or Replace all`
+    ? `${n}${res.truncated ? '+' : ''} replacement${n === 1 ? '' : 's'} in ${res.files} file${res.files === 1 ? '' : 's'} — uncheck any to skip, then Replace selected or Replace all${res.truncated ? '. Only the first 2,000 hits are shown; Replace all replaces just these' : ''}`
     : `No matches in ${res.scanned} file${res.scanned === 1 ? '' : 's'} — nothing to replace`;
   if (!n) {
     setReplaceMode(false);
@@ -1703,19 +1711,22 @@ function renderReplacePreview(res) {
 async function runReplace(mode) {
   const preview = S.search.replacePreview;
   if (!preview || !preview.results.length) return;
-  let selected = null;
-  if (mode === 'selected') {
-    selected = preview.results
-      .filter((h) => S.search.replaceSelection.has(replaceHitKey(h)))
-      .map((h) => ({ path: h.path, line: h.line, col: h.col }));
-    if (!selected.length) {
-      flashMessage('Nothing selected');
-      return;
-    }
+  // Replace all passes the previewed hits' coordinates, exactly like Replace
+  // selected does for the checked ones: the main process then only touches
+  // those hits, so a preview truncated at 2,000 can never silently replace
+  // unpreviewed matches (or skip the save-first guard for them).
+  const selected = preview.results
+    .filter((h) => mode === 'all' || S.search.replaceSelection.has(replaceHitKey(h)))
+    .map((h) => ({ path: h.path, line: h.line, col: h.col }));
+  if (!selected.length) {
+    flashMessage('Nothing selected');
+    return;
   }
   const query = $('#search-input').value;
-  const replacement = $('#search-replace-input').value;
-  const affected = new Set((selected || preview.results).map((h) => h.path));
+  // Use the replacement snapshotted with the preview, not the field's
+  // current value — the field may have been edited after previewing.
+  const replacement = preview.replacement ?? $('#search-replace-input').value;
+  const affected = new Set(selected.map((h) => h.path));
   // The open document may be among the files about to change: never silently
   // overwrite unsaved edits in it.
   if (S.path && S.dirty && [...affected].some((p) => samePath(p, S.path))) {
@@ -1773,8 +1784,11 @@ async function runReplace(mode) {
   }
   refreshTree();
   // The folder watcher will also notice the renames, but pick up a changed
-  // open document right away instead of waiting for its debounce.
-  if (S.path && [...affected].some((p) => samePath(p, S.path))) await checkExternalChange();
+  // open document right away instead of waiting for its debounce. Forced:
+  // this change was made by us, so it reloads even if the user turned off
+  // reloading for external changes — otherwise the stale buffer would
+  // overwrite the replacement on the next save.
+  if (S.path && [...affected].some((p) => samePath(p, S.path))) await checkExternalChange({ force: true });
 }
 
 async function openSearchHit(hit) {
@@ -1811,6 +1825,18 @@ function wireSearch() {
     if (e.key === 'Enter') {
       e.preventDefault();
       runReplacePreview();
+    }
+  });
+  // Editing the replacement after previewing voids the preview: the
+  // before/after rows on screen were computed with the old text, so they
+  // must not be executed. The user re-previews with the new text instead.
+  $('#search-replace-input').addEventListener('input', () => {
+    const preview = S.search.replacePreview;
+    if (preview && $('#search-replace-input').value !== preview.replacement) {
+      S.search.replacePreview = null;
+      S.search.replaceSelection = null;
+      setReplaceMode(false);
+      runSearch();
     }
   });
   $('#btn-replace-preview').addEventListener('click', runReplacePreview);

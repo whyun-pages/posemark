@@ -97,6 +97,49 @@ test('apply preserves line endings and the rest of the file byte for byte', () =
   assert.equal(out.text, 'a\r\nb bar\r\nc\n');
 });
 
+test('dollar expansion matches native String.replace for nonexistent groups', () => {
+  // Verified against Node's native behaviour: a reference to a group that
+  // does not exist stays literal instead of being deleted.
+  assert.equal(expandReplacement('$1', /x/.exec('x')), '$1');
+  assert.equal(expandReplacement('$0', /x/.exec('x')), '$0');
+  assert.equal(expandReplacement('$<nope>', /(a)/.exec('a')), '$<nope>');
+  // $99 with one group stays literal: 9 is not a group either.
+  assert.equal(expandReplacement('$99', /(a)/.exec('a')), '$99');
+  assert.equal(expandReplacement('$07', /(a)/.exec('a')), '$07');
+  // Two-digit fallback is kept: $10 / $11 with one group mean $1 + '0' / '1'.
+  assert.equal(expandReplacement('$10', /(a)b/.exec('ab')), 'a0');
+  assert.equal(expandReplacement('$11', /(a)/.exec('a')), 'a1');
+  // An existing group that did not participate in the match expands to ''.
+  assert.equal(expandReplacement('[$2]', /(a)|(b)/.exec('a')), '[]');
+  assert.equal(expandReplacement('[$<y>]', /(?<x>a)|(?<y>b)/.exec('a')), '[]');
+  // Same through the whole-text path, including a plain literal search.
+  assert.equal(applyReplaceText('x', { query: 'x', replacement: '$1' }).text, '$1');
+  assert.equal(applyReplaceText('x', { query: 'x', replacement: '$0' }).text, '$0');
+});
+
+test('preview stops at the limit and stays fast on many matches', () => {
+  const text = 'foo\n'.repeat(40000); // ~160 KB, 40,000 matches
+  const start = Date.now();
+  const hits = previewReplace(text, { query: 'foo', replacement: 'bar', limit: 2000 });
+  const ms = Date.now() - start;
+  assert.equal(hits.length, 2000);
+  assert.equal(hits[1999].line, 2000);
+  assert.equal(hits[1999].col, 0);
+  // The old per-hit rescan took ~8 s for this input; the incremental
+  // tracker plus early stop should be orders of magnitude faster.
+  assert.ok(ms < 2000, `preview took ${ms}ms`);
+  // Without a limit the full scan still returns every hit, with correct
+  // line numbers throughout.
+  const all = findMatches(text, { query: 'foo' });
+  assert.equal(all.length, 40000);
+  assert.equal(all[39999].line, 40000);
+});
+
+test('findMatches honours a limit', () => {
+  assert.equal(findMatches('foo foo foo', { query: 'foo', limit: 2 }).length, 2);
+  assert.equal(findMatches('foo foo foo', { query: 'foo' }).length, 3);
+});
+
 test('read-only mode detection', () => {
   assert.equal(isReadOnlyMode(0o100444), true);
   assert.equal(isReadOnlyMode(0o100644), false);

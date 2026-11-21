@@ -843,7 +843,10 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
       continue;
     }
     out.scanned++;
-    const fileHits = searchReplace.previewReplace(text, { query, replacement, caseSensitive, wholeWord, regex });
+    // Pass the remaining result budget in so preview generation stops as
+    // soon as the cap is reached instead of materializing every hit in a
+    // file with tens of thousands of matches first.
+    const fileHits = searchReplace.previewReplace(text, { query, replacement, caseSensitive, wholeWord, regex, limit: Math.max(0, maxResults - out.results.length) });
     if (!fileHits.length) continue;
     out.files++;
     for (const h of fileHits) {
@@ -858,13 +861,18 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
 }
 
 // Execute a replace. `selected` is an array of { path, line, col } from the
-// preview list, or null for "replace all". Files are re-read here, so a stale
-// preview can under-apply (counted in selectedNotFound) but never replaces
-// the wrong text. Read-only files are skipped and reported, never written.
-// Writing goes through a temp file + rename, so a crash mid-write never leaves
-// a half-written note; the folder watcher ignores *.tmp files, and the rename
-// is picked up by the existing tree:changed → checkExternalChange flow, which
-// reloads the open document (or asks, if it has unsaved edits).
+// preview list, or null for "replace all" (every match in the folder). Files
+// are re-read here, so a stale preview can under-apply (counted in
+// selectedNotFound) but never replaces the wrong text. Read-only files are
+// skipped and reported, never written. Writing goes through a uniquely named
+// temp file (exclusive creation, so an unrelated sibling can never be
+// clobbered) + rename, so a crash mid-write never leaves a half-written note;
+// the folder watcher ignores *.tmp files, and the rename is picked up by the
+// existing tree:changed → checkExternalChange flow, which reloads the open
+// document (or asks, if it has unsaved edits). The temp file and the backup
+// keep the original file's mode, so a private 0600 note does not silently
+// become 0644. A symbolic link is written through to its target, like a
+// normal save does, instead of replacing the link itself.
 async function replaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, selected = null }) {
   const out = { changed: [], skipped: [], files: 0, replacements: 0, backupDir: null, error: null, selectedNotFound: 0 };
   if (!dir || !query) return out;
@@ -885,12 +893,21 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
   const stamp = `${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}-${crypto.randomBytes(3).toString('hex')}`;
   for (const file of files) {
     if (selected && !wantedByFile.has(file)) continue;
+    // Resolve a symbolic link to its target first: stat/read/write must all
+    // act on the target, and the final rename must land on the target too,
+    // or the link itself would be replaced by a regular file.
+    let target = file;
+    try {
+      if ((await fsp.lstat(file)).isSymbolicLink()) target = await fsp.realpath(file);
+    } catch {
+      continue;
+    }
     let text;
     let st;
     try {
-      st = await fsp.stat(file);
-      if (st.size > 8 * 1024 * 1024) continue;
-      text = await fsp.readFile(file, 'utf8');
+      st = await fsp.stat(target);
+      if (!st.isFile() || st.size > 8 * 1024 * 1024) continue;
+      text = await fsp.readFile(target, 'utf8');
     } catch {
       continue;
     }
@@ -913,14 +930,19 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     try {
       await fsp.mkdir(path.dirname(backup), { recursive: true });
       await fsp.writeFile(backup, text, 'utf8');
+      await fsp.chmod(backup, st.mode & 0o7777);
     } catch (err) {
       out.skipped.push({ path: file, reason: `backup failed: ${err.message}` });
       continue;
     }
-    const tmp = `${file}.tmp`;
+    // Unique name + exclusive creation: an unrelated file that happens to
+    // be called note.md.tmp is never touched, and the temp file we clean up
+    // on failure is always one this run created itself.
+    const tmp = `${target}.${process.pid}-${crypto.randomBytes(6).toString('hex')}.tmp`;
     try {
-      await fsp.writeFile(tmp, next, 'utf8');
-      await fsp.rename(tmp, file);
+      await fsp.writeFile(tmp, next, { encoding: 'utf8', flag: 'wx' });
+      await fsp.chmod(tmp, st.mode & 0o7777);
+      await fsp.rename(tmp, target);
     } catch (err) {
       await fsp.unlink(tmp).catch(() => {});
       out.skipped.push({ path: file, reason: err.message });
