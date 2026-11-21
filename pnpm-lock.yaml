@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      iconv-lite:
+        specifier: 0.6.3
+        version: 0.6.3
     devDependencies:
       '@codemirror/autocomplete':
         specifier: ^6.18.0
@@ -1250,6 +1254,10 @@ packages:
 
   iconv-lite@0.6.0:
     resolution: {integrity: sha512-43ZpGYZ9QtuutX5l6WC1DSO8ane9N+Ct5qPLF2OV7vM9abM69gnAbVkh66ibaZd3aOGkoP1ZmringlKhLBkw2Q==}
+    engines: {node: '>=0.10.0'}
+
+  iconv-lite@0.6.3:
+    resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
     engines: {node: '>=0.10.0'}
 
   import-meta-resolve@4.2.0:
@@ -3420,6 +3428,10 @@ snapshots:
       - supports-color
 
   iconv-lite@0.6.0:
+    dependencies:
+      safer-buffer: 2.1.2
+
+  iconv-lite@0.6.3:
     dependencies:
       safer-buffer: 2.1.2
 

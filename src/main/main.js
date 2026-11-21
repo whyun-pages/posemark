@@ -1002,6 +1002,13 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     const { text: next, count } = searchReplace.applyReplaceText(text, { query, replacement, caseSensitive, wholeWord, regex }, wanted);
     if (wanted) out.selectedNotFound += wanted.size - count;
     if (!count) continue;
+    let encoded;
+    try {
+      encoded = encodeText(next, decoded);
+    } catch (err) {
+      out.skipped.push({ path: file, reason: err.message });
+      continue;
+    }
     const backup = backupPathFor(dir, stamp, file);
     try {
       await fsp.mkdir(path.dirname(backup), { recursive: true });
@@ -1016,7 +1023,7 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     // on failure is always one this run created itself.
     const tmp = `${target}.${process.pid}-${crypto.randomBytes(6).toString('hex')}.tmp`;
     try {
-      await fsp.writeFile(tmp, encodeText(next, decoded), { flag: 'wx', mode: st.mode & 0o777 });
+      await fsp.writeFile(tmp, encoded, { flag: 'wx', mode: st.mode & 0o777 });
       await fsp.chmod(tmp, st.mode & 0o7777);
       if (!(await replaceIfUnchanged(file, target, original, tmp, st))) {
         await fsp.unlink(tmp).catch(() => {});
