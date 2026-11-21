@@ -47,7 +47,6 @@ const DEFAULTS = {
   treeSortDesc: false,
   treeShowHidden: false,
   treeShowAllFiles: false,
-  reloadOnExternalChange: true,
   // Copy for WeChat style (see WECHAT_DEFAULTS in src/renderer/wechat.js)
   wechatTheme: 'current',
   wechatFontSize: 16,

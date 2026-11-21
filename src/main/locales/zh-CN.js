@@ -394,8 +394,6 @@ module.exports = {
     '每次编辑后片刻会备份未保存的文档；可在此处或 文件 › 恢复未保存的草稿 中恢复',
   'Default file extension': '默认文件扩展名',
   'Used for new files and Save As': '用于新建文件和另存为',
-  'Reload the open file when it changes on disk': '磁盘上的文件变化时重新加载',
-  'With unsaved edits you are asked whether to reload or keep them': '有未保存修改时会询问是重新加载还是保留',
   'Record recently opened files and folders': '记录最近打开的文件和文件夹',
   'Off: Open Recent and Quick Open stop collecting history (pinned folders stay)': '关闭后“打开最近文件”和“快速打开”不再记录历史（固定的文件夹保留）',
   'Reading speed (words per minute)': '阅读速度（字/分钟）',

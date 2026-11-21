@@ -374,11 +374,8 @@ async function reloadFromDisk() {
 }
 
 let externalPrompt = false; // one "reload or keep" dialog at a time
-// `opts.force` is for changes this app made itself (folder replace): a clean
-// open document is reloaded even when the user turned off reloading for
-// external changes, because the new content is ours and the old buffer would
-// otherwise silently overwrite it on the next save. A dirty buffer still goes
-// through the conflict prompt below, forced or not.
+// A confirmed folder replacement can trigger a check even when the file's
+// modification timestamp matches the one already recorded by the editor.
 async function checkExternalChange(opts = {}) {
   if (!S.path || externalPrompt) return;
   const st = await window.ink.stat(S.path);
@@ -387,11 +384,6 @@ async function checkExternalChange(opts = {}) {
     return;
   }
   if (!opts.force && (!S.mtime || Math.abs(st.mtime - S.mtime) < 1)) return;
-  if (S.config.reloadOnExternalChange === false && !opts.force) {
-    S.mtime = st.mtime;
-    flashMessage(`${basename(S.path)} changed on disk — your unsaved edits are kept`);
-    return;
-  }
   if (!S.dirty) {
     await reloadFromDisk();
     return;
@@ -1867,11 +1859,7 @@ async function runReplace(mode) {
     host.appendChild(btn);
   }
   refreshTree();
-  // The folder watcher will also notice the renames, but pick up a changed
-  // open document right away instead of waiting for its debounce. Forced:
-  // this change was made by us, so it reloads even if the user turned off
-  // reloading for external changes — otherwise the stale buffer would
-  // overwrite the replacement on the next save.
+  // Refresh the affected document immediately while the watcher catches up.
   if (S.path && out.changed.length) {
     const currentPath = S.path;
     const currentTarget = await window.ink.resolveFilePath(currentPath);
@@ -2047,12 +2035,6 @@ const PREF_SECTIONS = [
         title: 'Files',
         fields: [
           { key: 'defaultExtension', label: 'Default file extension', type: 'text', hint: 'Used for new files and Save As' },
-          {
-            key: 'reloadOnExternalChange',
-            label: 'Reload the open file when it changes on disk',
-            type: 'bool',
-            hint: 'With unsaved edits you are asked whether to reload or keep them',
-          },
           {
             key: 'recordRecent',
             label: 'Record recently opened files and folders',
