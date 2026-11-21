@@ -8,12 +8,12 @@ confirmed in current docs and should be re-checked against the live Partner Cent
 | Field | Limit | Used |
 | --- | --- | --- |
 | Product name | must match a reserved name | `Posemark` |
-| Description | required, ≤ 10,000 chars, plain text, no HTML / code / URLs | 4,298 |
+| Description | required, ≤ 10,000 chars, plain text, no HTML / code / URLs | 4,714 |
 | Short description | optional, ≤ 1,000 chars (only the first ~270 shown in some views) | 195 |
-| What's new in this version | ≤ 1,500 chars — leave blank on the first submission | 0.3.0 update text |
+| What's new in this version | ≤ 1,500 chars — leave blank on the first submission | 0.4.0 update text |
 | Product features | up to 20 items, ≤ 200 chars each, no own bullets | 20 items, longest 121 |
 | Search terms | up to 7 terms, ≤ 30 chars each; not shown to users; avoid competitor brand names and words like "free"/"best" | 7, longest 21 |
-| Screenshot captions | ≤ 200 chars each, up to 10 desktop screenshots | see `update-0.3.0.md`, 7 screenshots |
+| Screenshot captions | ≤ 200 chars each, up to 10 desktop screenshots | see `update-0.4.0.md`, 7 screenshots |
 | Copyright and trademark info | ≤ 200 chars *(assumed)* | 1 line |
 | Additional license terms | ≤ 10,000 chars *(assumed)*; optional | MIT notice below |
 
@@ -55,10 +55,13 @@ Writing comfort
 - Smart typography, auto-pairing of brackets and Markdown markers, and smart paste that turns rich text from web pages or Word into Markdown.
 - Find and replace with regular expressions, jump to line, focus mode, typewriter mode, zoom and full screen.
 - Word count with characters, lines, paragraphs and reading time.
+- Detects UTF-8, GBK and UTF-16 (with a byte order mark) files, keeps the original encoding on save, and shows it in the status bar.
 
 Workspace
 - Open a folder and work from a file tree: new file, new folder, rename, duplicate, drag-and-drop move, move to the Recycle Bin, and undo of the last file operation. Clear file and folder icons and a collapse-all button help you navigate.
 - Quick open, recent files, pinned folders, a flat file list view and search across the whole folder.
+- Find and replace across a folder: preview every hit, tick the ones you want, then apply. Originals are backed up before anything is replaced.
+- Right-click a file or folder in File Explorer to open it with Posemark. If Posemark is already running, each path opens in a new window.
 - An outline panel with folding and filtering.
 - Changes made to the folder by other programs show up automatically.
 - Multiple windows, one document per window, and automatic save if you want it.
@@ -93,10 +96,10 @@ Optional image upload through PicGo-Core, PicList or a custom command
 GitHub-style alerts, footnotes, [TOC] block, emoji shortcodes and front matter
 Smart paste from web pages and Word, smart typography, and auto-pairing of brackets and Markdown markers
 File tree with clear icons, collapse all, rename, drag-and-drop move, Recycle Bin and undo
-Quick open, recent files, pinned folders and search across the whole folder
-Outline panel with folding and filtering; word count and reading time
+Quick open, recent files, pinned folders, and folder search with previewed batch replace
+Outline panel with folding and filtering; word count; UTF-8, GBK and UTF-16 detection
 Source code mode with Markdown syntax highlighting
-Focus mode, typewriter mode, multiple windows and auto save
+Focus mode, typewriter mode, multiple windows, auto save and a File Explorer right-click menu
 Unsaved-draft backups you can recover after a crash
 Export to self-contained HTML or PDF; copy as HTML or Markdown
 Export articles as an offline website with a cover and searchable contents; export panel and reader currently use Chinese
@@ -118,16 +121,16 @@ markdown to pdf
 
 ## What's new in this version
 
-Text for the 0.3.0 update. Left blank on the first submission (0.2.0).
+Text for the 0.4.0 update. Left blank on the first submission (0.2.0).
 
 ```
-Posemark 0.3.0 introduces website export.
+Posemark 0.4.0 adds a File Explorer right-click menu and folder find and replace.
 
-Turn a folder of Markdown articles into a website with a cover and searchable contents. Select and reorder chapters, adjust the book title and appearance, and preview before exporting. Local images, attachments, equations and Mermaid diagrams are bundled. Open index.html for offline reading, or upload the complete output folder to a static host. Remote resources still require a connection.
+Right-click a file and choose Open with Posemark, or right-click a folder or a folder's empty background and choose Open Folder with Posemark. The menu works in the Windows 11 context menu and follows the Windows display language (English or Simplified Chinese). A folder opens in the sidebar and a file opens in the editor; if Posemark is already running, each path opens in a new window. If the menu does not appear after installing or updating, restart Explorer or sign out and back in.
 
-The reader supports chapter and continuous reading, font size and paper colours, with layouts for phones and shorter windows. The export panel and generated reader currently use Chinese.
+Folder search can now replace as well: preview every hit, select the ones you want, then apply. Original files are backed up before they are changed.
 
-File-tree and outline icons, disclosure arrows and spacing are clearer, and a new button collapses all folders. Code-block and diagram controls have been refreshed, and the displayed app version has been corrected.
+Posemark now detects UTF-8, GBK and UTF-16 (with a byte order mark) files, keeps the original encoding when saving, and shows the encoding in the status bar. Unmodified documents are also reloaded when another program changes them on disk.
 ```
 
 ## Copyright and trademark info

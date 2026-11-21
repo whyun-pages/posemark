@@ -1,6 +1,6 @@
 # 商店截图与宣传图
 
-0.3.0 使用已经重拍的中英文应用截图，整理命令、文件位置和上传顺序见 [update-0.3.0.md](update-0.3.0.md)。运行 `node docs/store/prepare-update.cjs` 后，每种语言的七张 PNG 与对应标题会放在 `release/store-0.3.0/` 中。下方保留首次提交前的旧截图检查记录，关于 Inkdown 旧名称和需要重拍的说明不再适用于当前素材。
+0.3.0 起使用已经重拍的中英文应用截图，0.4.0 沿用同一组，整理命令、文件位置和上传顺序见 [update-0.4.0.md](update-0.4.0.md)。运行 `node docs/store/prepare-update.cjs` 后，每种语言的七张 PNG 与对应标题会放在 `release/store-0.4.0/` 中。下方保留首次提交前的旧截图检查记录，关于 Inkdown 旧名称和需要重拍的说明不再适用于当前素材。
 
 ## 商店要求（Microsoft Learn《App screenshots, images, and trailers》，2026-10 查阅）
 

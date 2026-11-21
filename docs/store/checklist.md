@@ -1,6 +1,6 @@
 # Microsoft Store（Partner Center）提交清单
 
-当前 0.3.0 更新使用 [update-0.3.0.md](update-0.3.0.md)，其中说明了新版本文案、原始 PNG 截图和商店安装包的位置。下方保留首次提交时的历史清单，旧版本号、截图状态和“新增功能留空”的要求只适用于首次提交。
+当前 0.4.0 更新使用 [update-0.4.0.md](update-0.4.0.md)，其中说明了新版本文案、原始 PNG 截图和商店安装包的位置。下方保留首次提交时的历史清单，旧版本号、截图状态和“新增功能留空”的要求只适用于首次提交。
 
 相关文档：`listing.zh-CN.md` / `listing.en-US.md`（列表文字）、`privacy-policy.md`、`age-rating-and-declarations.md`、
 `packaging.md`（MSIX 打包）、`screenshots.md`（截图与宣传图）。
