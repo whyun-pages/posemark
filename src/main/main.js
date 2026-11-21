@@ -820,7 +820,7 @@ function backupPathFor(dir, stamp, file) {
 // replacement text for that hit and the context line as it would look after
 // replacing just that hit.
 async function previewReplaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, maxResults = 2000 }) {
-  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null };
+  const out = { results: [], files: 0, scanned: 0, truncated: false, error: null, fingerprints: {} };
   if (!dir || !query) return out;
   try {
     searchReplace.buildSearchRegExp({ query, caseSensitive, wholeWord, regex });
@@ -849,6 +849,10 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
     const fileHits = searchReplace.previewReplace(text, { query, replacement, caseSensitive, wholeWord, regex, limit: Math.max(0, maxResults - out.results.length) });
     if (!fileHits.length) continue;
     out.files++;
+    // Fingerprint of the text this preview was computed from, so the apply
+    // step can refuse a file that changed after previewing (see
+    // replaceInFolder). Only files with hits need one.
+    out.fingerprints[file] = searchReplace.contentFingerprint(text);
     for (const h of fileHits) {
       if (out.results.length >= maxResults) {
         out.truncated = true;
@@ -860,10 +864,17 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
   return out;
 }
 
-// Execute a replace. `selected` is an array of { path, line, col } from the
-// preview list, or null for "replace all" (every match in the folder). Files
-// are re-read here, so a stale preview can under-apply (counted in
-// selectedNotFound) but never replaces the wrong text. Read-only files are
+// Execute a replace. `selected` is an array of { path, line, col, match } from
+// the preview list, or null for "replace all" (every match in the folder).
+// Files are re-read here, so a stale preview can under-apply (counted in
+// selectedNotFound) but never replaces the wrong text: a selected hit is only
+// applied when the text freshly scanned at its line:col still equals the
+// `match` text from the preview, and the whole file must still match the
+// fingerprint taken at preview time — an identical line inserted before a
+// hit shifts it down a line while leaving the text at the old coordinate
+// unchanged, which the per-hit check alone cannot see. A file that fails
+// either check is skipped whole (listed in staleFiles) and must be
+// re-previewed. Read-only files are
 // skipped and reported, never written. Writing goes through a uniquely named
 // temp file (exclusive creation, so an unrelated sibling can never be
 // clobbered) + rename, so a crash mid-write never leaves a half-written note;
@@ -873,8 +884,8 @@ async function previewReplaceInFolder({ dir, query, replacement = '', caseSensit
 // keep the original file's mode, so a private 0600 note does not silently
 // become 0644. A symbolic link is written through to its target, like a
 // normal save does, instead of replacing the link itself.
-async function replaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, selected = null }) {
-  const out = { changed: [], skipped: [], files: 0, replacements: 0, backupDir: null, error: null, selectedNotFound: 0 };
+async function replaceInFolder({ dir, query, replacement = '', caseSensitive = false, wholeWord = false, regex = false, selected = null, fingerprints = null }) {
+  const out = { changed: [], skipped: [], files: 0, replacements: 0, backupDir: null, error: null, selectedNotFound: 0, staleFiles: [] };
   if (!dir || !query) return out;
   try {
     searchReplace.buildSearchRegExp({ query, caseSensitive, wholeWord, regex });
@@ -882,11 +893,14 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     out.error = err.message;
     return out;
   }
+  // `selected` is an array of { path, line, col, match } from the preview
+  // list: the `match` is the text previewed at that coordinate, so a file
+  // edited after previewing can be checked against it below.
   const wantedByFile = new Map();
   if (selected) {
     for (const s of selected) {
-      if (!wantedByFile.has(s.path)) wantedByFile.set(s.path, new Set());
-      wantedByFile.get(s.path).add(searchReplace.hitKey(s));
+      if (!wantedByFile.has(s.path)) wantedByFile.set(s.path, new Map());
+      wantedByFile.get(s.path).set(searchReplace.hitKey(s), s.match);
     }
   }
   const files = await walkMarkdown(dir, 20000);
@@ -911,14 +925,32 @@ async function replaceInFolder({ dir, query, replacement = '', caseSensitive = f
     } catch {
       continue;
     }
+    // Whole-file fingerprint check, before anything is written: matching by
+    // line:col (and even by the text at that coordinate) cannot see an
+    // identical line inserted before a hit, which shifts every later hit
+    // down a line. If the file changed at all since previewing, skip the
+    // whole file and tell the user to re-preview it.
+    const wanted = wantedByFile.get(file) || null;
+    if (wanted && fingerprints && fingerprints[file] && searchReplace.contentFingerprint(text) !== fingerprints[file]) {
+      out.staleFiles.push(file);
+      out.selectedNotFound += wanted.size;
+      continue;
+    }
     if (searchReplace.isReadOnlyMode(st.mode)) {
       out.skipped.push({ path: file, reason: 'read-only' });
       continue;
     }
-    const wanted = wantedByFile.get(file) || null;
     const hits = searchReplace.findMatches(text, { query, caseSensitive, wholeWord, regex });
     if (wanted) {
-      const found = hits.filter((h) => wanted.has(searchReplace.hitKey(h)));
+      // A hit only counts when its freshly scanned text still equals the
+      // text previewed at that coordinate. If the file changed after
+      // previewing (edited externally, or saved through the Save and Replace
+      // prompt), the stale hit is counted as not found and skipped — the
+      // replacement must never land on a different occurrence.
+      const found = hits.filter((h) => {
+        const expected = wanted.get(searchReplace.hitKey(h));
+        return expected === undefined || expected === h.match;
+      });
       out.selectedNotFound += wanted.size - found.length;
       if (!found.length) continue;
     } else if (!hits.length) {

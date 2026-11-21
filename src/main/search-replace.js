@@ -14,7 +14,17 @@
 // apply always agree; empty matches are skipped, exactly like searchFolder does
 // (a pattern such as `a*` must not insert the replacement everywhere).
 
+const crypto = require('crypto');
+
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// Content fingerprint of a file's text, used to catch a file that changed
+// after previewing: matching by line:col (and even by the text at that
+// coordinate) cannot see an identical line inserted before a hit, which
+// shifts every later hit down a line. A whole-file hash can.
+function contentFingerprint(text) {
+  return crypto.createHash('sha256').update(text, 'utf8').digest('hex');
+}
 
 // Throws on an invalid pattern (SyntaxError from RegExp); callers that report to
 // the UI should catch it and surface `err.message` instead of running anything.
@@ -166,15 +176,22 @@ function previewReplace(text, { replacement = '', limit = Infinity, ...opts }) {
   return hits;
 }
 
-// Apply the replacement. `selected` is an optional iterable of hitKey() values;
-// when given, only those hits are replaced, the rest are left untouched.
+// Apply the replacement. `selected` is an optional iterable of hitKey() values
+// (any hit at that coordinate is replaced), or a Map from hitKey() to the
+// match text previewed at that coordinate. With a Map, a hit is only replaced
+// when the text freshly scanned at its coordinate still equals the previewed
+// text: a file edited after previewing (or saved through the Save and Replace
+// prompt) must never have a different hit replaced in its place. Rejected
+// hits are simply skipped, like hits that are no longer found at all.
 // Returns { text, count }. The input text is returned unchanged when nothing
 // matches (or when `selected` matches nothing).
 function applyReplaceText(text, { replacement = '', ...opts }, selected) {
   const re = buildSearchRegExp(opts);
-  const wanted = selected === undefined || selected === null ? null : new Set(selected);
+  const wanted = selected === undefined || selected === null ? null
+    : (selected instanceof Map ? selected : new Set(selected));
   const position = createLineTracker(text);
   const spans = [];
+  let resolved = 0;
   let m;
   while ((m = re.exec(text)) !== null) {
     if (m[0] === '') {
@@ -182,11 +199,26 @@ function applyReplaceText(text, { replacement = '', ...opts }, selected) {
       continue;
     }
     const { line, col } = position(m.index);
-    if (wanted && !wanted.has(hitKey({ line, col }))) continue;
-    spans.push({ index: m.index, len: m[0].length, replacement: expandReplacement(replacement, m) });
-    // Once every selected hit has been found there is nothing left to do in
-    // this file, so stop scanning instead of walking the rest of it.
-    if (wanted && spans.length >= wanted.size) break;
+    if (wanted) {
+      const key = hitKey({ line, col });
+      if (!wanted.has(key)) continue;
+      resolved++;
+      if (wanted instanceof Map) {
+        // Stale preview: the text at this coordinate changed after
+        // previewing, so this is not the hit the user approved.
+        const expected = wanted.get(key);
+        if (expected !== undefined && m[0] !== expected) {
+          if (resolved >= wanted.size) break;
+          continue;
+        }
+      }
+      spans.push({ index: m.index, len: m[0].length, replacement: expandReplacement(replacement, m) });
+      // Once every selected hit has been accounted for (replaced or
+      // rejected as stale) there is nothing left to do in this file.
+      if (resolved >= wanted.size) break;
+    } else {
+      spans.push({ index: m.index, len: m[0].length, replacement: expandReplacement(replacement, m) });
+    }
   }
   if (!spans.length) return { text, count: 0 };
   let out = '';
@@ -212,6 +244,7 @@ module.exports = {
   buildSearchRegExp,
   hitKey,
   expandReplacement,
+  contentFingerprint,
   findMatches,
   previewReplace,
   applyReplaceText,

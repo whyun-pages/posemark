@@ -7,6 +7,7 @@ const {
   buildSearchRegExp,
   hitKey,
   expandReplacement,
+  contentFingerprint,
   findMatches,
   previewReplace,
   applyReplaceText,
@@ -54,6 +55,35 @@ test('only the selected hits are replaced', () => {
   assert.equal(out.count, 1);
   // selecting nothing replaces nothing
   assert.equal(applyReplaceText(text, { query: 'foo', replacement: 'bar' }, []).text, text);
+});
+
+test('a selected hit is only replaced when the text at its coordinate still matches the preview', () => {
+  // Previewed against 'foo\nfoo'; the second hit is selected.
+  const previewed = findMatches('foo\nfoo', { query: 'foo' });
+  assert.equal(previewed.length, 2);
+  const selected = new Map([[hitKey(previewed[1]), previewed[1].match]]);
+  // Unchanged file: the selected hit is replaced, the other is untouched.
+  const out = applyReplaceText('foo\nfoo', { query: 'foo', replacement: 'bar' }, selected);
+  assert.equal(out.text, 'foo\nbar');
+  assert.equal(out.count, 1);
+  // File edited after previewing: the text at line 2, col 0 is now 'bar',
+  // so the stale hit is skipped and nothing is replaced.
+  const stale = applyReplaceText('foo\nbar', { query: 'foo', replacement: 'bar' }, selected);
+  assert.equal(stale.text, 'foo\nbar');
+  assert.equal(stale.count, 0);
+  // A Map entry without a previewed match falls back to coordinate-only
+  // matching, like a plain list of keys.
+  const noMatch = applyReplaceText('foo\nfoo', { query: 'foo', replacement: 'bar' }, new Map([[hitKey(previewed[1]), undefined]]));
+  assert.equal(noMatch.text, 'foo\nbar');
+  assert.equal(noMatch.count, 1);
+  // A stale hit does not block the other selected hits in the same file.
+  const both = new Map([
+    [hitKey(previewed[0]), previewed[0].match],
+    [hitKey(previewed[1]), previewed[1].match],
+  ]);
+  const mixed = applyReplaceText('foo\nbar', { query: 'foo', replacement: 'bar' }, both);
+  assert.equal(mixed.text, 'bar\nbar');
+  assert.equal(mixed.count, 1);
 });
 
 test('invalid regex throws and nothing is applied', () => {
@@ -144,4 +174,19 @@ test('read-only mode detection', () => {
   assert.equal(isReadOnlyMode(0o100444), true);
   assert.equal(isReadOnlyMode(0o100644), false);
   assert.equal(isReadOnlyMode(0o100600), false);
+});
+
+test('content fingerprint catches any change, including an inserted identical line', () => {
+  const before = 'foo\nfoo\n';
+  const fp = contentFingerprint(before);
+  assert.equal(contentFingerprint(before), fp);
+  assert.equal(contentFingerprint(''), contentFingerprint(''));
+  assert.notEqual(contentFingerprint(''), fp);
+  // A changed character changes the fingerprint.
+  assert.notEqual(contentFingerprint('foo\nbar\n'), fp);
+  // Codex's example: inserting an identical line before the selected hit
+  // leaves the text at the old coordinate unchanged ('foo'), so the
+  // per-hit match check alone would still pass — the whole-file
+  // fingerprint is what catches it.
+  assert.notEqual(contentFingerprint('foo\nfoo\nfoo\n'), fp);
 });

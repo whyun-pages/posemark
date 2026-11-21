@@ -73,7 +73,7 @@ const S = {
   outlineQuery: '',
   outlineCollapsed: new Set(),
   currentHeading: -1,
-  search: { query: '', caseSensitive: false, wholeWord: false, regex: false, results: null, replacement: '', replacePreview: null, replaceSelection: null },
+  search: { query: '', caseSensitive: false, wholeWord: false, regex: false, results: null, replacement: '', replacePreview: null, replaceSelection: null, replaceRunning: false },
   themeId: 'default',
   filesView: 'tree',
   listCache: null,
@@ -1615,9 +1615,22 @@ function setReplaceMode(previewing) {
   $('#search-replace-execute').hidden = !previewing;
 }
 
+// While a replace is running, Preview replace and both execution buttons
+// are disabled, so no second operation can start until the first finishes.
+function setReplaceButtonsDisabled(disabled) {
+  for (const id of ['#btn-replace-preview', '#btn-replace-selected', '#btn-replace-all']) {
+    const btn = $(id);
+    if (btn) btn.disabled = disabled;
+  }
+}
+
 async function runReplacePreview() {
+  if (S.search.replaceRunning) return; // a replace is in flight; don't move the preview under it
   const query = $('#search-input').value;
   const replacement = $('#search-replace-input').value;
+  const caseSensitive = S.search.caseSensitive;
+  const wholeWord = S.search.wholeWord;
+  const regex = S.search.regex;
   S.search.replacement = replacement;
   if (!S.folder) {
     flashMessage('Open a folder first');
@@ -1632,11 +1645,14 @@ async function runReplacePreview() {
     dir: S.folder,
     query,
     replacement,
-    caseSensitive: S.search.caseSensitive,
-    wholeWord: S.search.wholeWord,
-    regex: S.search.regex,
+    caseSensitive,
+    wholeWord,
+    regex,
   });
-  if (query !== $('#search-input').value || replacement !== $('#search-replace-input').value) return;
+  // The query, replacement or matching options changed while previewing:
+  // this result no longer describes what is on screen, so drop it.
+  if (query !== $('#search-input').value || replacement !== $('#search-replace-input').value
+    || caseSensitive !== S.search.caseSensitive || wholeWord !== S.search.wholeWord || regex !== S.search.regex) return;
   if (res.error) {
     S.search.replacePreview = null;
     S.search.replaceSelection = null;
@@ -1644,8 +1660,13 @@ async function runReplacePreview() {
     renderSearchResults(res);
     return;
   }
-  // Snapshot the replacement with the preview: executing later must use the
-  // text the preview showed, not whatever the field holds by then.
+  // Snapshot the query, matching options and replacement with the preview:
+  // executing later must use exactly what the preview showed, not whatever
+  // the fields hold by then.
+  res.query = query;
+  res.caseSensitive = caseSensitive;
+  res.wholeWord = wholeWord;
+  res.regex = regex;
   res.replacement = replacement;
   S.search.replacePreview = res;
   S.search.replaceSelection = new Set(res.results.map(replaceHitKey));
@@ -1710,22 +1731,34 @@ function renderReplacePreview(res) {
 
 async function runReplace(mode) {
   const preview = S.search.replacePreview;
-  if (!preview || !preview.results.length) return;
+  if (!preview || !preview.results.length || S.search.replaceRunning) return;
+  // In-flight guard, set before the first await: while a replace is running
+  // its buttons are disabled, so a second click cannot launch a duplicate
+  // write over the same selection (and expand a hit twice).
+  S.search.replaceRunning = true;
+  setReplaceButtonsDisabled(true);
+  try {
   // Replace all passes the previewed hits' coordinates, exactly like Replace
   // selected does for the checked ones: the main process then only touches
   // those hits, so a preview truncated at 2,000 can never silently replace
-  // unpreviewed matches (or skip the save-first guard for them).
+  // unpreviewed matches (or skip the save-first guard for them). Each hit
+  // also carries the text previewed at its coordinate, so the main process
+  // can refuse a hit whose file changed after previewing.
   const selected = preview.results
     .filter((h) => mode === 'all' || S.search.replaceSelection.has(replaceHitKey(h)))
-    .map((h) => ({ path: h.path, line: h.line, col: h.col }));
+    .map((h) => ({ path: h.path, line: h.line, col: h.col, match: h.match }));
   if (!selected.length) {
     flashMessage('Nothing selected');
     return;
   }
-  const query = $('#search-input').value;
-  // Use the replacement snapshotted with the preview, not the field's
-  // current value — the field may have been edited after previewing.
+  // Use the query, matching options and replacement snapshotted with the
+  // preview, not the fields' current values — they may have been edited
+  // after previewing.
+  const query = preview.query ?? $('#search-input').value;
   const replacement = preview.replacement ?? $('#search-replace-input').value;
+  const caseSensitive = preview.caseSensitive ?? S.search.caseSensitive;
+  const wholeWord = preview.wholeWord ?? S.search.wholeWord;
+  const regex = preview.regex ?? S.search.regex;
   const affected = new Set(selected.map((h) => h.path));
   // The open document may be among the files about to change: never silently
   // overwrite unsaved edits in it.
@@ -1745,10 +1778,13 @@ async function runReplace(mode) {
     dir: S.folder,
     query,
     replacement,
-    caseSensitive: S.search.caseSensitive,
-    wholeWord: S.search.wholeWord,
-    regex: S.search.regex,
+    caseSensitive,
+    wholeWord,
+    regex,
     selected,
+    // Fingerprints of the files as previewed: the main process refuses a
+    // file whose content changed after previewing (see staleFiles below).
+    fingerprints: preview.fingerprints || null,
   });
   if (out.error) {
     flashMessage(`Replace failed: ${out.error}`);
@@ -1762,6 +1798,9 @@ async function runReplace(mode) {
     parts.push(`${out.skipped.length} skipped (${out.skipped.map((s) => `${basename(s.path)}: ${s.reason}`).join(', ')})`);
   }
   if (out.selectedNotFound) parts.push(`${out.selectedNotFound} selected hit${out.selectedNotFound === 1 ? '' : 's'} no longer found`);
+  if (out.staleFiles && out.staleFiles.length) {
+    parts.push(`${out.staleFiles.length} file${out.staleFiles.length === 1 ? '' : 's'} changed since preview (${out.staleFiles.map((p) => basename(p)).join(', ')}) — preview again to replace ${out.staleFiles.length === 1 ? 'it' : 'them'}`);
+  }
   const summary = $('#search-summary');
   summary.textContent = parts.join('. ');
   const host = $('#search-results');
@@ -1789,6 +1828,10 @@ async function runReplace(mode) {
   // reloading for external changes — otherwise the stale buffer would
   // overwrite the replacement on the next save.
   if (S.path && [...affected].some((p) => samePath(p, S.path))) await checkExternalChange({ force: true });
+  } finally {
+    S.search.replaceRunning = false;
+    setReplaceButtonsDisabled(false);
+  }
 }
 
 async function openSearchHit(hit) {
@@ -1820,7 +1863,19 @@ function wireSearch() {
       S.view.focus();
     }
   });
-  input.addEventListener('input', debounce(() => runSearch(), 350));
+  const debouncedSearch = debounce(() => runSearch(), 350);
+  input.addEventListener('input', () => {
+    // Invalidate a replace preview synchronously: the debounced search below
+    // runs 350 ms later, and until then the old preview's coordinates must
+    // not be executable with the new query. (runSearch() itself also clears
+    // the preview, so this only moves the invalidation earlier.)
+    if (S.search.replacePreview) {
+      S.search.replacePreview = null;
+      S.search.replaceSelection = null;
+      setReplaceMode(false);
+    }
+    debouncedSearch();
+  });
   $('#search-replace-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
