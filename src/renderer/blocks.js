@@ -1238,15 +1238,22 @@ export class ImageWidget extends WidgetType {
     span.dataset.to = String(this.block.to);
     span.dataset.kind = this.spec.kind;
     const img = document.createElement('img');
-    img.src = this.resolved;
     img.alt = this.label;
     if (this.title) img.title = this.title;
     applyImageSize(img, this.spec);
     img.draggable = false;
+    img.addEventListener('load', () => {
+      // A viewBox-only SVG can load successfully but collapse in the inline widget.
+      if (img.naturalWidth > 0 && img.offsetWidth === 0 && img.getClientRects().length) {
+        span.classList.add('md-image-fill');
+        view.requestMeasure();
+      }
+    });
     img.addEventListener('error', () => {
       span.classList.add('error');
       span.textContent = `🖼 ${this.label || this.src}`;
     });
+    img.src = this.resolved;
     span.appendChild(img);
 
     const from = this.block.from;
