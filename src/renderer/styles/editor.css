@@ -302,6 +302,9 @@ body.hide-sidebar .cm-editor .cm-content { padding: 0 72px; }
 .md-hr hr { border: none; border-top: 1px solid var(--border); margin: 0; }
 .md-inline-image img { max-width: 100%; border-radius: 4px; vertical-align: middle; }
 .md-inline-image { display: inline-block; position: relative; line-height: 0; }
+.md-inline-image.md-image-fill { max-width: 100%; }
+/* Give a ratio-only image a definite width, then cap it at the line width. */
+.md-inline-image.md-image-fill img { width: 100vw; }
 
 /* click-to-resize frame */
 .md-inline-image.resizing { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 5px; }
