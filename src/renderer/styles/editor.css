@@ -276,8 +276,20 @@ body.hide-sidebar .cm-editor .cm-content { padding: 0 72px; }
 .md-diagram-holder { padding: 45px 16px 42px; overflow-x: auto; }
 .md-diagram-footer { display: flex; padding: 0 18px 13px; text-align: left; }
 .md-diagram-source { border-radius: 0; background: transparent; text-align: left; padding-top: 32px; padding-bottom: 30px; }
-.md-diagram-frame.expanded .md-diagram-holder { padding-top: 70px; padding-bottom: 65px; }
-.md-diagram-frame.expanded .md-diagram-holder svg { width: 100%; max-width: none !important; }
+.md-diagram-dialog {
+  box-sizing: border-box;
+  width: calc(100vw - 32px);
+  height: calc(100vh - 32px);
+  margin: auto;
+  padding: 52px 16px 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--fg);
+  background: var(--bg);
+}
+.md-diagram-dialog::backdrop { background: rgb(0 0 0 / 55%); }
+.md-diagram-dialog > button { position: absolute; top: 10px; right: 12px; }
+.md-diagram-dialog > svg { display: block; width: 100%; height: 100%; max-width: none !important; }
 .md-diagram-frame [hidden] { display: none !important; }
 .md-diagram-source .md-code-line::before { counter-increment: line; content: counter(line); display: inline-block; width: 2em; margin-right: .8em; text-align: right; color: var(--fg-faint); }
 .md-diagram-source code { counter-reset: line; }

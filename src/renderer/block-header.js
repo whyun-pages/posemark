@@ -111,14 +111,29 @@ export function createDiagramHeader({ id, frame, holder, source, measure, menu }
     tabButtons[index].focus();
   });
   const expand = button('expand', 'Expand diagram', () => {
-    const expanded = frame.classList.toggle('expanded');
+    const svg = holder.querySelector(':scope > svg');
+    if (!svg) return;
     select(0);
-    setIcon(expand, expanded ? 'collapse' : 'expand');
-    expand.title = tr(expanded ? 'Restore diagram' : 'Expand diagram');
-    expand.setAttribute('aria-label', expand.title);
-    expand.setAttribute('aria-pressed', String(expanded));
+    const dialog = document.createElement('dialog');
+    dialog.className = 'md-diagram-dialog';
+    dialog.contentEditable = 'false';
+    dialog.setAttribute('aria-label', tr('Diagram view'));
+    const restore = button('collapse', 'Restore diagram', () => dialog.close());
+    restore.autofocus = true;
+    dialog.addEventListener('mousedown', (event) => event.stopPropagation());
+    dialog.addEventListener('close', () => {
+      holder.appendChild(svg);
+      dialog.remove();
+      if (expand.isConnected) {
+        expand.focus({ preventScroll: true });
+        measure();
+      }
+    });
+    dialog.append(restore, svg);
+    frame.appendChild(dialog);
+    dialog.showModal();
   });
-  expand.setAttribute('aria-pressed', 'false');
+  expand.setAttribute('aria-haspopup', 'dialog');
   const more = button('more', 'More actions', () => menu(more));
   more.setAttribute('aria-haspopup', 'menu');
   actions.append(expand, more);
