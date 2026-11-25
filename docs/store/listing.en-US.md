@@ -10,10 +10,10 @@ confirmed in current docs and should be re-checked against the live Partner Cent
 | Product name | must match a reserved name | `Posemark` |
 | Description | required, ≤ 10,000 chars, plain text, no HTML / code / URLs | 4,714 |
 | Short description | optional, ≤ 1,000 chars (only the first ~270 shown in some views) | 195 |
-| What's new in this version | ≤ 1,500 chars — leave blank on the first submission | 0.4.0 update text |
+| What's new in this version | ≤ 1,500 chars — leave blank on the first submission | 0.4.1 update text |
 | Product features | up to 20 items, ≤ 200 chars each, no own bullets | 20 items, longest 121 |
 | Search terms | up to 7 terms, ≤ 30 chars each; not shown to users; avoid competitor brand names and words like "free"/"best" | 7, longest 21 |
-| Screenshot captions | ≤ 200 chars each, up to 10 desktop screenshots | see `update-0.4.0.md`, 7 screenshots |
+| Screenshot captions | ≤ 200 chars each, up to 10 desktop screenshots | 7 screenshots and captions carried forward from 0.4.0, see `update-0.4.0.md` |
 | Copyright and trademark info | ≤ 200 chars *(assumed)* | 1 line |
 | Additional license terms | ≤ 10,000 chars *(assumed)*; optional | MIT notice below |
 
@@ -121,16 +121,12 @@ markdown to pdf
 
 ## What's new in this version
 
-Text for the 0.4.0 update. Left blank on the first submission (0.2.0).
+Text for the 0.4.1 update.
 
 ```
-Posemark 0.4.0 adds a File Explorer right-click menu and folder find and replace.
+You can now maximize a Mermaid diagram in a separate preview dialog and right-click it there to save or copy it.
 
-Right-click a file and choose Open with Posemark, or right-click a folder or a folder's empty background and choose Open Folder with Posemark. The menu works in the Windows 11 context menu and follows the Windows display language (English or Simplified Chinese). A folder opens in the sidebar and a file opens in the editor; if Posemark is already running, each path opens in a new window. If the menu does not appear after installing or updating, restart Explorer or sign out and back in.
-
-Folder search can now replace as well: preview every hit, select the ones you want, then apply. Original files are backed up before they are changed.
-
-Posemark now detects UTF-8, GBK and UTF-16 (with a byte order mark) files, keeps the original encoding when saving, and shows the encoding in the status bar. Unmodified documents are also reloaded when another program changes them on disk.
+Fixed an issue where SVG images defined only by a viewBox could disappear in the Markdown live preview.
 ```
 
 ## Copyright and trademark info
