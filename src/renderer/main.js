@@ -783,7 +783,7 @@ function closeCtxMenu() {
   document.querySelectorAll('.ctx-menu').forEach((el) => el.remove());
 }
 
-function openCtxMenu(x, y, items) {
+function openCtxMenu(x, y, items, container = document.body) {
   closeCtxMenu();
   const menu = document.createElement('div');
   menu.className = 'ctx-menu';
@@ -797,7 +797,7 @@ function openCtxMenu(x, y, items) {
     const b = document.createElement('button');
     b.className = 'ctx-item' + (it.danger ? ' danger' : '');
     const span = document.createElement('span');
-    span.textContent = it.label;
+    span.textContent = container === document.body ? it.label : tr(it.label);
     b.appendChild(span);
     if (it.hint) {
       const k = document.createElement('span');
@@ -814,7 +814,7 @@ function openCtxMenu(x, y, items) {
   }
   menu.style.left = `${x}px`;
   menu.style.top = `${y}px`;
-  document.body.appendChild(menu);
+  container.appendChild(menu);
   const r = menu.getBoundingClientRect();
   if (r.right > innerWidth - 8) menu.style.left = `${Math.max(8, innerWidth - r.width - 8)}px`;
   if (r.bottom > innerHeight - 8) menu.style.top = `${Math.max(8, innerHeight - r.height - 8)}px`;
@@ -3429,7 +3429,8 @@ function wireImageMenu() {
       if (!span && !diagram) return;
       e.preventDefault();
       e.stopPropagation();
-      openCtxMenu(e.clientX, e.clientY, span ? imageMenuItems(span) : diagramMenuItems(diagram));
+      const dialog = e.target.closest('.md-diagram-dialog[open]');
+      openCtxMenu(e.clientX, e.clientY, span ? imageMenuItems(span) : diagramMenuItems(diagram), dialog ?? document.body);
     },
     true,
   );
@@ -3451,8 +3452,11 @@ function diagramSvgText(svgEl) {
 
 // Source mode hides the rendered SVG; retain its intrinsic export dimensions.
 function diagramBounds(svgEl) {
-  const rect = svgEl.getBoundingClientRect();
   const intrinsic = svgEl.viewBox?.baseVal;
+  if (intrinsic?.width && intrinsic.height && svgEl.closest('.md-diagram-dialog')) {
+    return { width: intrinsic.width, height: intrinsic.height };
+  }
+  const rect = svgEl.getBoundingClientRect();
   return { width: rect.width || intrinsic?.width || 640, height: rect.height || intrinsic?.height || 360 };
 }
 
@@ -3467,7 +3471,7 @@ async function diagramPng(svgEl) {
 }
 
 function diagramMenuItems(el) {
-  const svgEl = el.querySelector('.md-diagram-holder svg, .md-live-body svg');
+  const svgEl = el.querySelector('.md-diagram-holder svg, .md-live-body svg, .md-diagram-dialog > svg');
   const stem = (S.path ? basename(S.path).replace(/\.[^.]+$/, '') : 'diagram') + '-diagram';
   const items = [];
   if (!svgEl) return [{ label: 'Diagram is not rendered yet', run: () => {} }];
