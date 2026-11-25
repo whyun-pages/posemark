@@ -3,7 +3,7 @@
 // The WeChat editor throws away every stylesheet, <style> block and class rule, so
 // everything has to be inline styles on plain elements. Anything it cannot hold
 // (KaTeX's layout spans, mermaid's <svg>) is rasterised to a PNG first.
-import mermaid from 'mermaid';
+import { editorMermaid } from './mermaid-render.js';
 import { renderFragment, splitFrontMatter } from './markdown.js';
 
 const MONO = "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace";
@@ -213,7 +213,7 @@ async function injectMermaid(host) {
   for (const el of host.querySelectorAll('.mermaid')) {
     const code = el.getAttribute('data-src') || el.textContent;
     try {
-      const { svg } = await mermaid.render(`wx-mmd-${++i}-${Date.now()}`, code);
+      const { svg } = await editorMermaid.render(`wx-mmd-${++i}-${Date.now()}`, code);
       el.innerHTML = svg;
     } catch {
       el.textContent = code;

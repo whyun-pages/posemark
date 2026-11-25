@@ -1,7 +1,7 @@
 ﻿// Application shell: files, sidebar, outline, status bar, menu dispatch, export.
 import { EditorView } from '@codemirror/view';
 import { syntaxTree, ensureSyntaxTree } from '@codemirror/language';
-import mermaid from 'mermaid';
+import { editorMermaid } from './mermaid-render.js';
 import {
   createEditor,
   setDoc,
@@ -32,7 +32,7 @@ import {
   ctx,
 } from './editor.js';
 import { refreshLivePreview } from './live-preview.js';
-import { scanBlocks, headingOf, retargetedImageSource, writeImageWidth, configureMermaid } from './blocks.js';
+import { scanBlocks, headingOf, retargetedImageSource, writeImageWidth } from './blocks.js';
 import { htmlToMarkdown, htmlLooksPlain } from './html2md.js';
 import { renderFragment, buildStandaloneHtml, splitFrontMatter, slugify } from './markdown.js';
 import { tr, watchDom, setLanguage, currentLanguage, LANGUAGES } from './i18n.js';
@@ -86,58 +86,6 @@ const S = {
   docMeta: { copyTo: '', rootUrl: '' },
 };
 
-const WELCOME = `# Posemark
-
-A **Typora-style** markdown editor: what you write is what you see, and the Markdown
-syntax only shows up on the line your caret is on.
-
-## Things to try
-
-- Move the caret onto this line to see the \`-\` and **bold** markers again.
-- [ ] Task lists work: click the checkbox on the left.
-- [x] This one is already done.
-
-> Quotes render as quotes. Hover the caret into it and the \`>\` comes back.
-
-### Code
-
-\`\`\`js
-function greet(name) {
-  // syntax highlighting via highlight.js
-  return \`hello, \${name}\`;
-}
-\`\`\`
-
-### Math
-
-Inline math like $e^{i\\pi} + 1 = 0$ works, and so do block equations:
-
-$$
-\\int_{-\\infty}^{\\infty} e^{-x^2}\\,dx = \\sqrt{\\pi}
-$$
-
-### Tables
-
-| Feature | Status |
-| --- | --- |
-| Live preview | yes |
-| Outline | yes |
-| Export HTML / PDF | yes |
-
-### Diagrams
-
-\`\`\`mermaid
-graph LR
-  A[Write markdown] --> B{Live preview}
-  B --> C[Export HTML/PDF]
-\`\`\`
-
----
-
-Open a folder from the sidebar to browse your notes, hit **Ctrl+P** to quick-open a file,
-and **Ctrl+F** to search inside the document.
-`;
-
 // ---------------------------------------------------------------------------
 // theme
 // ---------------------------------------------------------------------------
@@ -161,7 +109,7 @@ async function renderTheme(forceId) {
   document.body.dataset.theme = theme.id;
   S.themeId = theme.id;
   // diagrams follow the theme (and the theme's --mermaid-* variables)
-  configureMermaid();
+  editorMermaid.invalidateConfig();
   if (S.view) refreshLivePreview(S.view);
 }
 
@@ -2649,7 +2597,7 @@ function applyRuntimeConfig() {
   ctx.config.mermaidTheme = S.config.mermaidTheme || 'auto';
   ctx.config.mermaidSequenceNumbers = S.config.mermaidSequenceNumbers === true;
   ctx.config.mermaidFlowchartCurve = S.config.mermaidFlowchartCurve || 'basis';
-  if (!appliedConfig || MERMAID_KEYS.some((k) => appliedConfig[k] !== S.config[k])) configureMermaid();
+  if (!appliedConfig || MERMAID_KEYS.some((k) => appliedConfig[k] !== S.config[k])) editorMermaid.invalidateConfig();
   if (appliedConfig && appliedConfig.language !== S.config.language) {
     window.ink.language().then((lang) => {
       if (lang === currentLanguage()) return;
@@ -2699,7 +2647,7 @@ async function buildExport(format = 'html', overrides = null) {
   for (const el of host.querySelectorAll('.mermaid')) {
     const code = el.getAttribute('data-src') || el.textContent;
     try {
-      const { svg } = await mermaid.render(`export-mmd-${++i}-${Date.now()}`, code);
+      const { svg } = await editorMermaid.render(`export-mmd-${++i}-${Date.now()}`, code);
       el.innerHTML = svg;
     } catch {
       /* leave the code block as is */
@@ -3753,7 +3701,6 @@ async function boot() {
 
   S.view = createEditor({
     parent: $('#editor'),
-    doc: WELCOME,
     onChange: () => markDirty(),
     onCursor: (state) => {
       updateCursor(state);

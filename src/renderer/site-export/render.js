@@ -1,8 +1,8 @@
 import {renderFragment, splitFrontMatter} from '../markdown.js';
 import {ctx, toFileUrl} from '../paths.js';
-import mermaid from 'mermaid';
+import {createMermaidRenderer} from '../mermaid-render.js';
 
-mermaid.initialize({startOnLoad:false,securityLevel:'strict',theme:'neutral'});
+const mermaid=createMermaidRenderer(()=>({startOnLoad:false,securityLevel:'strict',theme:'neutral'}),'../mermaid.js');
 let sequence=0;
 export async function renderChapter(chapter) {
   const meta=splitFrontMatter(chapter.source).meta||{};

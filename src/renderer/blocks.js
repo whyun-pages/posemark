@@ -2,7 +2,7 @@
 import { WidgetType } from '@codemirror/view';
 import { undo, redo } from '@codemirror/commands';
 import katex from 'katex';
-import mermaid from 'mermaid';
+import { editorMermaid } from './mermaid-render.js';
 import { mdit } from './markdown.js';
 import { highlightCode, isDiagramLang } from './syntax.js';
 import { ctx, resolveSrc, parseImageTag } from './paths.js';
@@ -1028,7 +1028,7 @@ export class DiagramLivePreviewWidget extends WidgetType {
     const code = diagramSource(this.block.info, this.code) ?? this.code;
     liveDiagramTimer = setTimeout(() => {
       if (!body.isConnected) return;
-      mermaid
+      editorMermaid
         .render('ink-live-' + ++diagramSeq, code)
         .then(({ svg }) => {
           body.classList.remove('pending', 'error');
@@ -1092,29 +1092,6 @@ export class ImageLivePreviewWidget extends WidgetType {
   }
 }
 
-// Mermaid picks its look up from the theme's CSS variables first (`--mermaid-theme`,
-// `--mermaid-font-family`, `--mermaid-sequence-numbers`, `--mermaid-flowchart-curve`, the
-// names Typora uses), then from the preferences, then follows light / dark.
-export function mermaidConfig() {
-  const has = typeof document !== 'undefined' && document.body;
-  const cs = has ? getComputedStyle(document.body) : null;
-  const v = (name) => (cs ? cs.getPropertyValue(name).trim().replace(/^["']|["']$/g, '') : '');
-  const dark = has && document.body.classList.contains('theme-dark');
-  const pref = ctx.config.mermaidTheme || 'auto';
-  const theme = v('--mermaid-theme') || (pref !== 'auto' ? pref : dark ? 'dark' : 'default');
-  const fontFamily = v('--mermaid-font-family') || 'inherit';
-  const seq = v('--mermaid-sequence-numbers');
-  const showSequenceNumbers = seq ? /^(on|true|1|yes)$/i.test(seq) : ctx.config.mermaidSequenceNumbers === true;
-  const curve = v('--mermaid-flowchart-curve') || ctx.config.mermaidFlowchartCurve || 'basis';
-  return { startOnLoad: false, securityLevel: 'loose', theme, fontFamily, sequence: { showSequenceNumbers }, flowchart: { curve } };
-}
-
-export function configureMermaid() {
-  mermaid.initialize(mermaidConfig());
-}
-
-configureMermaid();
-
 export class DiagramWidget extends WidgetType {
   constructor(code, block) {
     super();
@@ -1157,7 +1134,7 @@ export class DiagramWidget extends WidgetType {
     frame.append(header, holder, source, footer);
     div.appendChild(frame);
     bindClick(div, view, this.block.from + 3);
-    mermaid
+    editorMermaid
       .render(this.id, diagramSource(this.block.info, this.code) ?? this.code)
       .then(({ svg }) => {
         holder.innerHTML = svg;

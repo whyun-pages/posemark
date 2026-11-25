@@ -44,16 +44,21 @@ function copyAssets() {
   copyDir(path.join(root, 'src/renderer/site-export'), path.join(outdir, 'site-export'));
 }
 
+const bundles = [
+  options,
+  { ...options, entryPoints: [path.join(root, 'src/renderer/site-export/ui.js')], outfile: path.join(outdir, 'site-export/ui.js') },
+  { ...options, entryPoints: ['mermaid'], outfile: path.join(outdir, 'mermaid.js'), globalName: 'PosemarkMermaid' },
+];
+
 if (watch) {
-  const ctx = await esbuild.context(options);
-  await ctx.watch();
   copyAssets();
-  const siteContext = await esbuild.context({ ...options, entryPoints: [path.join(root, 'src/renderer/site-export/ui.js')], outfile: path.join(outdir, 'site-export/ui.js') });
-  await siteContext.watch();
+  await Promise.all(bundles.map(async (bundle) => {
+    const context = await esbuild.context(bundle);
+    await context.watch();
+  }));
   console.log('watching…');
 } else {
-  await esbuild.build(options);
   copyAssets();
-  await esbuild.build({ ...options, entryPoints: [path.join(root, 'src/renderer/site-export/ui.js')], outfile: path.join(outdir, 'site-export/ui.js') });
+  await Promise.all(bundles.map((bundle) => esbuild.build(bundle)));
   console.log('build ok');
 }
